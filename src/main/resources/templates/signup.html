@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 90vh;
+            background-color: #f0f2f5;
+        }
+        .login-card { /* Renaming to .form-card would be better, but we'll reuse .login-card */
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            width: 350px;
+            text-align: center;
+        }
+        .login-card h2 {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        .btn {
+            width: 100%;
+            padding: 0.8rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .message {
+            font-size: 0.9em;
+            text-align: left;
+            margin-top: 0.5rem;
+            height: 1em;
+        }
+        .error-message { color: #d93025; }
+        .success-message { color: #1e8e3e; }
+        .login-link {
+            margin-top: 1.5rem;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <h2>Create Account</h2>
+    <form id="signUpForm">
+        <div class="form-group">
+            <label for="new-username">Username:</label>
+            <input type="text" id="new-username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="new-email">Email:</label>
+            <input type="email" id="new-email" name="email" required>
+        </div>
+        <div class="form-group">
+            <label for="new-password">Password:</label>
+            <input type="password" id="new-password" name="password" minlength="6" required>
+        </div>
+
+        <div id="signUpMessage" class="message"></div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Sign Up</button>
+    </form>
+
+    <p class="login-link">
+        Already have an account? <a href="/login">Sign In</a>
+    </p>
+</div>
+
+
+
+</body>
+</html>
