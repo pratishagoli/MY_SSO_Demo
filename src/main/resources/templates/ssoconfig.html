@@ -517,8 +517,14 @@
                 const editableFields = {
                     'JWT': ['clientId', 'issuer', 'redirectUri', 'loginUrl'],
                     'OIDC': ['clientId', 'clientSecret', 'scope', 'issuerUri'],
-                    'SAML': ['entityId', 'metadataUrl', 'acsUrl', 'ssoServiceUrl', 'nameIdFormat']
-                };
+                    'SAML': [
+                        'entityId',              // Your SP Entity ID
+                        'idpEntityId',           // The IdP's Issuer ID
+                        'ssoServiceUrl',         // The SAML Login URL
+                        'idpCertificateContent', // The X.509 Certificate
+                        'metadataUrl'            // The IdP Metadata URL (for your reference)
+                    ]
+                };s
                 
                 const editable = editableFields[ssoType] || [];
                 

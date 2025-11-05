@@ -117,6 +117,9 @@ public class SsoConfigService {
         SsoConfig config = ssoConfigRepository.findBySsoType(ssoType)
                 .orElse(new SsoConfig(ssoType, true)); // Create if not exists
 
+        logger.info("Updating configuration details for {}", ssoType);
+
+        // --- COMMON/JWT FIELDS ---
         if (details.containsKey("configUrl")) {
             config.setConfigUrl(details.get("configUrl"));
         }
@@ -127,7 +130,31 @@ public class SsoConfigService {
             config.setSigningKey(details.get("signingKey"));
         }
 
-        logger.info("Updating configuration details for {}", ssoType);
+        // --- 👇 THIS IS THE MISSING LOGIC ---
+        // --- SAML FIELDS ---
+
+        // This is your application's (SP) Entity ID
+        if (details.containsKey("entityId")) {
+            config.setSpEntityId(details.get("entityId"));
+        }
+
+        // This is the IdP's Entity ID (from miniOrange)
+        if (details.containsKey("idpEntityId")) {
+            config.setIdpEntityId(details.get("idpEntityId"));
+        }
+
+        // This is the IdP's Login URL (from miniOrange)
+        if (details.containsKey("ssoServiceUrl")) {
+            config.setIdpSsoUrl(details.get("ssoServiceUrl"));
+        }
+
+        // This is the IdP's X.509 Certificate (from miniOrange)
+        if (details.containsKey("idpCertificateContent")) {
+            config.setIdpCertificateContent(details.get("idpCertificateContent"));
+        }
+        // --- 👆 END OF FIX ---
+
+        logger.info("Saving updated config for {} to database", ssoType);
         return ssoConfigRepository.save(config);
     }
 
