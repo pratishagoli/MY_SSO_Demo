@@ -41,6 +41,7 @@ public class SsoConfigService {
                     // FIX: If this is the SAML config, set the default URL
                     if ("SAML".equals(ssoType)) {
                         config.setConfigUrl(DEFAULT_SAML_METADATA_URL);
+                        config.setSpEntityId(DEFAULT_SP_ENTITY_ID);
                         logger.info("Populating default SAML config with metadata URL: {}", DEFAULT_SAML_METADATA_URL);
                     }
 
