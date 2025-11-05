@@ -18,6 +18,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
 
 @Controller
 public class WebController {
@@ -108,6 +109,16 @@ public class WebController {
             if (username == null) {
                 username = ((OAuth2User) principal).getName();
             }
+            //
+            // vvv ADD THIS NEW BLOCK vvv
+            //
+        } else if (principal instanceof Saml2AuthenticatedPrincipal) {
+            Saml2AuthenticatedPrincipal samlPrincipal = (Saml2AuthenticatedPrincipal) principal;
+            // Get the user's email, which is the NameID
+            username = samlPrincipal.getName();
+            //
+            // ^^^ END OF NEW BLOCK ^^^
+            //
         } else if (principal != null) {
             username = principal.toString();
         } else {
@@ -115,8 +126,10 @@ public class WebController {
         }
 
         model.addAttribute("username", username);
-        return "dashboard"; // Renders dashboard.html (User Dashboard)
+        return "dashboard";
     }
+
+
 
     /**
      * 🚀 NEW: Mapping for the Admin Dashboard.
