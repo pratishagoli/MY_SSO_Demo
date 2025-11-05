@@ -67,18 +67,18 @@ public class SsoConfigController {
             case "JWT":
                 configMap.put("protocol", "JWT (JSON Web Token)");
                 // These are hardcoded in your app.properties
-                configMap.put("clientId", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
-                configMap.put("issuer", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
+                configMap.put("clientId", config.getClientId()); // Use the new getter
+                configMap.put("issuerUri", config.getIssuerUri()); // Use the new getter
                 configMap.put("redirectUri", "http://localhost:8080/auth/jwt/callback");
                 configMap.put("loginUrl", "https://pratisha.xecurify.com/moas/idp/jwtsso/379428");
                 break;
             case "OIDC":
                 configMap.put("protocol", "OIDC (OpenID Connect)");
                 // These are hardcoded in your app.properties
-                configMap.put("clientId", "NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
-                configMap.put("clientSecret", "rbHqjgFowkLiOvKnURJV4LEUSEFlzWNj");
+                configMap.put("clientId", config.getClientId()); // Use the new getter
+                configMap.put("clientSecret", config.getClientSecret()); // Use the new getter
                 configMap.put("scope", "openid,profile,email");
-                configMap.put("issuerUri", "https://pratisha.xecurify.com/moas/discovery/v2.0/NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
+                configMap.put("issuerUri", config.getIssuerUri());
                 configMap.put("grantType", "authorization_code");
                 break;
             case "SAML":

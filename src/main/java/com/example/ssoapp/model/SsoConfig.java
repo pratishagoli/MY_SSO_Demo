@@ -39,6 +39,14 @@ public class SsoConfig {
     @Column(length = 1000)
     private String spEntityId;
 
+    @Column(length = 255)
+    private String clientId;
+
+    @Column(length = 255)
+    private String clientSecret;
+
+    @Column(length = 1000)
+    private String issuerUri; // For OIDC or JWT issuer
 
     // Default constructor for JPA
     public SsoConfig() {
@@ -147,5 +155,30 @@ public class SsoConfig {
 
     public void setSpEntityId(String spEntityId) {
         this.spEntityId = spEntityId;
+    }
+
+    // --- New Getters and Setters for OIDC/JWT ---
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public String getClientSecret() {
+        return clientSecret;
+    }
+
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret;
+    }
+
+    public String getIssuerUri() {
+        return issuerUri;
+    }
+
+    public void setIssuerUri(String issuerUri) {
+        this.issuerUri = issuerUri;
     }
 }

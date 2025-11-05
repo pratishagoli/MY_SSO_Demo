@@ -112,23 +112,37 @@
             background-color: #fafafa;
         }
 
-        .action-btn {
-            background: none;
-            border: 1px solid #ccc;
-            padding: 5px 10px;
-            border-radius: 4px;
-            margin-right: 5px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: background-color 0.2s;
-        }
-        .action-btn:hover {
-            background-color: #e0e0e0;
-        }
-        .action-btn.delete {
-            color: #d93025;
-            border-color: #d93025;
-        }
+        /* --- NEW STYLES FOR TABLE ACTION BUTTONS (Matching SSO Config) --- */
+.action-btn {
+    /* Solid button appearance */
+    display: inline-block;
+    padding: 6px 12px; /* Adjusted padding to look smaller/tighter */
+    border-radius: 4px;
+    margin-right: 5px;
+    cursor: pointer;
+    font-size: 0.85rem; /* Slightly smaller font */
+    font-weight: 500;
+    color: white; /* White text for all action buttons */
+    border: none; /* Remove border */
+    transition: background-color 0.2s ease;
+}
+
+/* Style for the Edit button (Green color) */
+.edit-btn {
+    background-color: #28a745; /* Green color from SSO Config */
+}
+.edit-btn:hover {
+    background-color: #218838; /* Darker green on hover */
+}
+
+/* Style for the Delete button (Red color) */
+/* The th:style inline override on delete button must be removed in HTML */
+.delete-btn {
+    background-color: #d93025; /* Red color */
+}
+.delete-btn:hover {
+    background-color: #c22015; /* Darker red on hover */
+}
 
         /* --- Modal Styles --- */
         .modal {
@@ -236,6 +250,66 @@
         .modal-buttons .yes-btn:hover {
             background-color: #c22015;
         }
+        /* --- Header Layout (Positioning Logo Left, Buttons Right) --- */
+.header {
+    display: flex;
+    justify-content: space-between; /* Pushes logo and actions to opposite ends */
+    align-items: center; /* Vertically centers items */
+    padding: 10px 20px;
+    background-color: #f8f9fa; /* Light background for contrast */
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* Container for the buttons (SSO Config and Logout) */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Adds space between the SSO Config link and the Logout button */
+}
+
+/* --- Blue Button Style (For SSO Configuration) --- */
+.action-btn-blue {
+    display: inline-block;
+    padding: 10px 18px;
+    border-radius: 4px; /* Rounded corners */
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+
+    /* Blue color scheme */
+    background-color: #007bff;
+    color: #ffffff;
+    border: none;
+    transition: background-color 0.2s;
+}
+
+.action-btn-blue:hover {
+    background-color: #0056b3;
+}
+
+/* --- Red Button Style (For Logout) --- */
+.action-btn-red {
+    display: inline-block;
+    padding: 10px 18px;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+
+    /* Red color scheme */
+    background-color: #dc3545;
+    color: #ffffff;
+    border: none;
+    transition: background-color 0.2s;
+}
+
+.action-btn-red:hover {
+    background-color: #c82333;
+}
+
+/* Ensure the default styles for 'auth-type-pill' are overridden or removed */
+.auth-type-pills {
+    display: none; /* Hide the old position of the pills if it still exists */
+}
     </style>
 </head>
 <body>
@@ -244,14 +318,14 @@
     <div class="header-logo">
         Admin SSO Panel
     </div>
-    <div class="auth-type-pills">
-        <span class="auth-type-pill" th:text="${currentAuthType} ?: 'JWT'">JWT</span>
-        <span class="auth-type-pill" th:text="${currentAuthType} ?: 'OIDC'">OIDC</span>
-        <span class="auth-type-pill" th:text="${currentAuthType} ?: 'SAML'">SAML</span>
+
+    <div class="header-actions">
+        <a href="/admin/sso/config" class="action-btn-blue">SSO Configuration</a>
+
+        <form id="logoutForm" th:action="@{/logout}" method="post" style="margin: 0;">
+            <button type="submit" class="action-btn-red">Logout</button>
+        </form>
     </div>
-    <form id="logoutForm" th:action="@{/logout}" method="post" style="margin: 0;">
-        <button type="submit" class="logout-btn">Logout</button>
-    </form>
 </header>
 
 <main class="main-container">
@@ -259,7 +333,6 @@
 
         <div class="admin-header">
             <h1 class="welcome-message">Admin Dashboard: User Management</h1>
-            <a href="/admin/sso/config" class="back-btn" style="margin: 0;">SSO Configuration</a>
         </div>
 
         <!-- Native Users Table -->
@@ -284,7 +357,7 @@
                 </td>
                 <td>
                     <button class="action-btn edit-btn" th:data-userid="${user.id}" th:data-usertype="native">Edit</button>
-                    <button class="action-btn delete-btn" style="color: #d93025; border-color: #d93025;" th:data-userid="${user.id}">Delete</button>
+                    <button class="action-btn delete-btn" th:data-userid="${user.id}">Delete</button>
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(nativeUsers)}">
@@ -317,7 +390,7 @@
                 </td>
                 <td>
                     <button class="action-btn edit-btn" th:data-userid="${user.id}" th:data-usertype="sso">Edit</button>
-                    <button class="action-btn delete-btn" style="color: #d93025; border-color: #d93025;" th:data-userid="${user.id}">Delete</button>
+                    <button class="action-btn delete-btn" th:data-userid="${user.id}">Delete</button>
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(ssoUsers)}">

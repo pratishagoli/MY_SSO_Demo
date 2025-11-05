@@ -131,6 +131,18 @@ public class SsoConfigService {
             config.setSigningKey(details.get("signingKey"));
         }
 
+        // --- NEW OIDC/JWT FIELDS ADDED HERE ---
+        if (details.containsKey("clientId")) {
+            config.setClientId(details.get("clientId"));
+        }
+        if (details.containsKey("clientSecret")) {
+            config.setClientSecret(details.get("clientSecret"));
+        }
+        if (details.containsKey("issuerUri")) {
+            config.setIssuerUri(details.get("issuerUri"));
+        }
+        // --- END NEW OIDC/JWT FIELDS ---
+
         // --- 👇 THIS IS THE MISSING LOGIC ---
         // --- SAML FIELDS ---
 
@@ -176,6 +188,12 @@ public class SsoConfigService {
                 return config.getVerificationCertificate();
             case "signingKey":
                 return config.getSigningKey();
+            case "clientId":
+                return config.getClientId();
+            case "clientSecret":
+                return config.getClientSecret();
+            case "issuerUri":
+                return config.getIssuerUri();
             default:
                 logger.warn("Unknown config key '{}' requested for type '{}'", key, ssoType);
                 return null;
