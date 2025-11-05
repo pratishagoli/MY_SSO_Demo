@@ -535,22 +535,22 @@
                     const isEditable = editable.includes(key);
                     const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
 
-                    html += <div class="config-item"><span class="config-label">${label}:</span>;
+                    html += `<div class="config-item"><span class="config-label">${label}:</span>`;
 
                     if (isEditable) {
                         // THIS IS THE FIX:
                         if (key === 'idpCertificateContent') {
                             // Use a textarea for the certificate
-                            html += <textarea class="config-input" data-field="${key}" rows="7" style="height: 140px; font-family: monospace;" placeholder="Paste certificate here (including -----BEGIN... and -----END...)">${value || ''}</textarea>;
+                            html += `<textarea class="config-input" data-field="${key}" rows="7" placeholder="Paste certificate here (including -----BEGIN... and -----END...)">${value || ''}</textarea>`;
                         } else {
                             // Use a normal input for all other fields
-                            html += <input type="text" class="config-input" data-field="${key}" value="${value || ''}" placeholder="Enter ${label}">;
+                            html += `<input type="text" class="config-input" data-field="${key}" value="${value || ''}" placeholder="Enter ${label}">`;
                         }
                     } else {
                         // This is for read-only fields
-                        html += <div class="config-value" style="padding: 8px; background: #f5f5f5; border-radius: 4px;">${value || 'N/A'}</div>;
+                        html += `<div class="config-value" style="padding: 8px; background: #f5f5f5; border-radius: 4px;">${value || 'N/A'}</div>`;
                     }
-                    html += </div>;
+                    html += `</div>`;
                 }
                 
                 modalContent.innerHTML = html;
