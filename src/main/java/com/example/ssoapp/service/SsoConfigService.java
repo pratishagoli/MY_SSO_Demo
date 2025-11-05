@@ -21,7 +21,7 @@ public class SsoConfigService {
 
     @Autowired
     private SsoConfigRepository ssoConfigRepository;
-    private static final String DEFAULT_SP_ENTITY_ID = "ssoapp";
+    private static final String DEFAULT_SP_ENTITY_ID = "http://localhost:8080/saml2/service-provider-metadata/miniorange-saml";
 
     // Hardcoded metadata URL to ensure it's set on initialization
     private static final String DEFAULT_SAML_METADATA_URL = "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956";

@@ -5,6 +5,8 @@ import com.example.ssoapp.security.jwt.JwtAuthenticationSuccessHandler;
 import com.example.ssoapp.security.saml.SamlAuthSuccessHandler;
 import com.example.ssoapp.service.CustomOAuth2UserService;
 import com.example.ssoapp.service.UserDetailsServiceImpl;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +18,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
@@ -25,8 +28,11 @@ import org.springframework.security.saml2.provider.service.authentication.OpenSa
 import org.springframework.security.saml2.provider.service.registration.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
+
+import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
@@ -59,7 +65,7 @@ public class WebSecurityConfig {
     // MAIN SECURITY CONFIG
     // ========================
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,RelyingPartyRegistrationRepository relyingPartyRegistrationRepository) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,RelyingPartyRegistrationRepository relyingPartyRegistrationRepository, OpenSaml4AuthenticationProvider samlAuthenticationProvider) throws Exception {
         http
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
 
@@ -98,6 +104,8 @@ public class WebSecurityConfig {
                         .permitAll()
                 )
                 .authenticationProvider(authenticationProvider())
+                .authenticationProvider(samlAuthenticationProvider)
+
 
                 // ---------- OAUTH2 / OPENID ----------
                 .oauth2Login(oauth2 -> oauth2
@@ -140,6 +148,7 @@ public class WebSecurityConfig {
                 .saml2Login(saml2 -> saml2
                         .loginPage("/login")
                         .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository) // 👈 TELL SPRING TO USE IT
+
                         .successHandler((request, response, authentication) -> {
                             org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Login");
                             logger.info("=== SAML2 LOGIN SUCCESS HANDLER INVOKED ===");
@@ -147,6 +156,20 @@ public class WebSecurityConfig {
                             logger.info("Principal type: {}", authentication.getPrincipal().getClass().getName());
                             // Call custom handler
                             samlAuthSuccessHandler.onAuthenticationSuccess(request, response, authentication);
+                        })
+                        .failureHandler(new SimpleUrlAuthenticationFailureHandler("/login?error=saml_failed") {
+                            @Override
+                            public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+                                org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Failure");
+                                logger.error("!!!!!!!!!!!!!!!!! SAML AUTHENTICATION FAILED !!!!!!!!!!!!!!!!!");
+                                // This logs the high-level reason, e.g., "Invalid signature"
+                                logger.error("Failure Message: {}", exception.getMessage());
+                                // This logs the underlying technical reason
+                                logger.error("Exception Cause: ", exception.getCause());
+                                logger.error("Full Exception: ", exception);
+                                logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+//                                super.onAuthenticationFailure(request, response, exception);
+                            }
                         })
                         .defaultSuccessUrl("/dashboard", true)
                 )
