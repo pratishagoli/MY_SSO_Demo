@@ -1,105 +1,287 @@
 package com.example.ssoapp.config;
 
-import com.example.ssoapp.security.UserDetailsServiceImpl;
+import com.example.ssoapp.security.jwt.JwtAuthenticationFilter;
+import com.example.ssoapp.security.jwt.JwtAuthenticationSuccessHandler;
+import com.example.ssoapp.security.saml.SamlAuthSuccessHandler;
 import com.example.ssoapp.service.CustomOAuth2UserService;
+import com.example.ssoapp.service.UserDetailsServiceImpl;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.saml2.provider.service.authentication.OpenSaml4AuthenticationProvider;
+import org.springframework.security.saml2.provider.service.registration.*;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig {
 
     @Autowired
-    private UserDetailsServiceImpl userDetailsService;
-
-    @Autowired
     private CustomOAuth2UserService customOAuth2UserService;
 
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private JwtAuthenticationSuccessHandler jwtAuthenticationSuccessHandler;
+
+    @Autowired
+    private SamlAuthSuccessHandler samlAuthSuccessHandler;
+
+    @Autowired
+    private UserDetailsServiceImpl userDetailsService;
+
+    // ========================
+    // PASSWORD ENCODER
+    // ========================
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // ========================
+    // MAIN SECURITY CONFIG
+    // ========================
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
-        System.out.println("\n==========================================");
-        System.out.println(">>> SECURITY CONFIG LOADED");
-        System.out.println(">>> CustomOAuth2UserService: " + customOAuth2UserService);
-        System.out.println("==========================================\n");
-
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
+
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login", "/signup", "/error").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/oauth2/**").permitAll()
+                        .requestMatchers("/", "/login", "/signup", "/register-user", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/oauth2/**", "/api/secret/**").permitAll()
                         .requestMatchers("/static/**", "/css/**", "/js/**").permitAll()
+                        .requestMatchers("/auth/jwt/callback", "/jwt/callback").permitAll()
+                        .requestMatchers("/sso/saml/**").permitAll() // allow SAML endpoints
+                        .requestMatchers("/login/saml2/**").permitAll() // allow SAML SSO endpoints
+                        .requestMatchers("/saml2/**").permitAll() // allow SAML2 endpoints
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/users/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**").hasAuthority("ADMIN")
+                        .requestMatchers("/admindashboard").hasAuthority("ADMIN")
+                        .requestMatchers("/admin/sso/config").hasAuthority("ADMIN")
+                        .requestMatchers("/admin/sso/config/**").hasAuthority("ADMIN")
+                        .requestMatchers("/admin/sso/test/attributes").hasAuthority("ADMIN") // Test results page requires admin
+                        .requestMatchers("/admin/sso/test/jwt/callback").permitAll() // Allow JWT test callback
+                        .requestMatchers("/admin/sso/test/**").permitAll() // Allow test flow endpoints during SSO
                         .anyRequest().authenticated()
                 )
+
+                // Allow sessions for SSO-based logins
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .invalidSessionUrl("/login?error=session_expired")
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                )
+
+                // ---------- FORM LOGIN ----------
                 .formLogin(form -> form
                         .loginPage("/login")
-                        .defaultSuccessUrl("/dashboard", true)
+                        .successHandler(jwtAuthenticationSuccessHandler)
+                        .failureUrl("/login?error=true")
                         .permitAll()
                 )
+                .authenticationProvider(authenticationProvider())
+
+                // ---------- OAUTH2 / OPENID ----------
                 .oauth2Login(oauth2 -> oauth2
                         .loginPage("/login")
                         .userInfoEndpoint(userInfo -> {
-                            // CRITICAL FIX: Set BOTH OAuth2UserService AND OidcUserService
                             userInfo.userService(customOAuth2UserService);
                             userInfo.oidcUserService(oidcUserService());
                         })
+                        .successHandler((request, response, authentication) -> {
+                            // Check if this is a test flow from session
+                            Boolean testMode = (Boolean) request.getSession().getAttribute("sso_test_mode");
+                            String testType = (String) request.getSession().getAttribute("sso_test_type");
+                            if (Boolean.TRUE.equals(testMode) && "OIDC".equals(testType)) {
+                                // Store OAuth attributes for modal popup
+                                java.util.Map<String, Object> testResult = new java.util.HashMap<>();
+                                testResult.put("testType", "OIDC");
+                                testResult.put("testStatus", "success");
+                                
+                                if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                                    org.springframework.security.oauth2.core.user.OAuth2User oauth2User = 
+                                        (org.springframework.security.oauth2.core.user.OAuth2User) authentication.getPrincipal();
+                                    testResult.put("attributes", oauth2User.getAttributes());
+                                }
+                                
+                                request.getSession().setAttribute("sso_test_result", testResult);
+                                request.getSession().removeAttribute("sso_test_mode");
+                                request.getSession().removeAttribute("sso_test_type");
+                                
+                                // Restore admin session
+                                restoreAdminSessionForTest(request, authentication);
+                                
+                                response.sendRedirect("/admin/sso/config?test=success");
+                            } else {
+                                response.sendRedirect("/dashboard");
+                            }
+                        })
+                )
+
+                // ---------- SAML2 LOGIN ----------
+                .saml2Login(saml2 -> saml2
+                        .loginPage("/login")
+                        .successHandler((request, response, authentication) -> {
+                            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Login");
+                            logger.info("=== SAML2 LOGIN SUCCESS HANDLER INVOKED ===");
+                            logger.info("Request URI: {}", request.getRequestURI());
+                            logger.info("Principal type: {}", authentication.getPrincipal().getClass().getName());
+                            // Call custom handler
+                            samlAuthSuccessHandler.onAuthenticationSuccess(request, response, authentication);
+                        })
                         .defaultSuccessUrl("/dashboard", true)
                 )
+
+                // ---------- LOGOUT ----------
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/login?logout")
                         .invalidateHttpSession(true)
-                        .deleteCookies("JSESSIONID")
+                        .deleteCookies("JSESSIONID", "AUTH_TOKEN")
                 )
+
+                // ---------- EXCEPTION HANDLING ----------
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, authException) ->
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")
-                        )
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            // Redirect to login page on authentication failure or expired session
+                            response.sendRedirect("/login?error=session_expired");
+                        })
                 );
+
+        // Add JWT filter before UsernamePasswordAuthenticationFilter
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /**
-     * CRITICAL: MiniOrange uses OIDC (OpenID Connect), not plain OAuth2.
-     * We need to configure an OidcUserService that delegates to our custom service.
-     */
+    // ========================
+    // OIDC SERVICE FOR OAUTH
+    // ========================
     @Bean
     public OAuth2UserService<org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest, OidcUser> oidcUserService() {
         final OidcUserService delegate = new OidcUserService();
 
         return (userRequest) -> {
-            // First, load the user using the default OIDC service
             OidcUser oidcUser = delegate.loadUser(userRequest);
-
-            System.out.println("\n==========================================");
-            System.out.println(">>> OIDC USER SERVICE CALLED <<<");
-            System.out.println(">>> Delegating to CustomOAuth2UserService");
-            System.out.println("==========================================\n");
-
-            // Now delegate to our custom service for user registration
-            // We call loadUser which will trigger our custom logic
             customOAuth2UserService.loadUser(userRequest);
-
-            // Return the OIDC user for Spring Security to use
             return oidcUser;
         };
+    }
+
+    // ========================
+    // SAML CONFIGURATION
+    // ========================
+    @Bean
+    public RelyingPartyRegistrationRepository relyingPartyRegistrationRepository() {
+        String idpMetadataUrl = "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956";
+
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(RelyingPartyRegistrationRepository.class);
+        logger.info("=== CONFIGURING SAML RELYING PARTY REGISTRATION ===");
+        logger.info("IdP Metadata URL: {}", idpMetadataUrl);
+        logger.info("Registration ID: miniorange-saml");
+        logger.info("Entity ID: ssoapp");
+        logger.info("ACS Location: http://localhost:8080/login/saml2/sso/miniorange-saml");
+
+        // Certificate is automatically extracted from metadata URL
+        // No need for separate certificate file - Spring Security extracts it from metadata
+        try {
+            RelyingPartyRegistration registration = RelyingPartyRegistrations
+                    .fromMetadataLocation(idpMetadataUrl)
+                    .registrationId("miniorange-saml")
+                    .entityId("ssoapp")  // your SP entity ID
+                    .assertionConsumerServiceLocation("http://localhost:8080/login/saml2/sso/miniorange-saml")
+                    .build();
+
+            logger.info("SAML Relying Party Registration created successfully");
+
+            return new InMemoryRelyingPartyRegistrationRepository(registration);
+        } catch (Exception e) {
+            logger.error("CRITICAL: Failed to create SAML Relying Party Registration", e);
+            throw new RuntimeException("Failed to configure SAML", e);
+        }
+    }
+
+    @Bean
+    public OpenSaml4AuthenticationProvider samlAuthenticationProvider() {
+        OpenSaml4AuthenticationProvider provider = new OpenSaml4AuthenticationProvider();
+        
+        // Custom response converter with enhanced logging
+        provider.setResponseAuthenticationConverter(responseToken -> {
+            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAMLResponseConverter");
+            logger.info("=== PROCESSING SAML RESPONSE ===");
+            logger.info("Response ID: {}", responseToken.getResponse().getID());
+            logger.info("InResponseTo: {}", responseToken.getResponse().getInResponseTo());
+            logger.info("Destination: {}", responseToken.getResponse().getDestination());
+            
+            try {
+                // Use default converter
+                var authResult = OpenSaml4AuthenticationProvider.createDefaultResponseAuthenticationConverter()
+                        .convert(responseToken);
+                
+                logger.info("SAML response converted successfully");
+                logger.info("Principal: {}", authResult.getPrincipal());
+                logger.info("Authorities: {}", authResult.getAuthorities());
+                
+                return authResult;
+            } catch (Exception e) {
+                logger.error("CRITICAL: Failed to convert SAML response", e);
+                throw e;
+            }
+        });
+        
+        return provider;
+    }
+
+    // ========================
+    // AUTHENTICATION PROVIDER FOR FORM LOGIN
+    // ========================
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    private void restoreAdminSessionForTest(jakarta.servlet.http.HttpServletRequest request, org.springframework.security.core.Authentication testAuth) {
+        // Restore admin authentication after test
+        org.springframework.security.core.Authentication adminAuth = 
+            (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
+        if (adminAuth != null) {
+            org.springframework.security.core.context.SecurityContext securityContext = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext();
+            securityContext.setAuthentication(adminAuth);
+            
+            jakarta.servlet.http.HttpSession session = request.getSession();
+            session.setAttribute(
+                org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                securityContext
+            );
+            
+            request.getSession().removeAttribute("admin_test_principal");
+            request.getSession().removeAttribute("admin_test_authorities");
+        }
     }
 }

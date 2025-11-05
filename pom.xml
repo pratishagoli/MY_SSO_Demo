@@ -19,6 +19,28 @@
         <java.version>17</java.version>
     </properties>
 
+    <!-- 🚀 UPDATED: Change to the Shibboleth 'public' group repository.
+         This group often proxies Maven Central, which helps resolve transitive
+         dependencies like Guava and Metrics that were failing before. -->
+    <repositories>
+        <repository>
+            <id>shibboleth-public-group</id>
+            <name>Shibboleth Public Group Repository (Includes Central Proxy)</name>
+            <url>https://build.shibboleth.net/nexus/content/groups/public</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+
+        <repository>
+            <id>shibboleth-releases</id>
+            <name>Shibboleth Releases</name>
+            <url>https://build.shibboleth.net/maven/releases/org/opensaml/</url>
+            <!-- Corrected URL to releases parent -->
+        </repository>
+
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -72,8 +94,36 @@
             <version>0.11.5</version>
             <scope>runtime</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-saml2-service-provider</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-saml2-service-provider</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.opensaml</groupId>
+            <artifactId>opensaml-saml-impl</artifactId>
+            <version>4.3.0</version>
+        </dependency>
     </dependencies>
 
+    <pluginRepositories>
+        <pluginRepository>
+            <id>shibboleth-releases</id>
+            <name>Shibboleth Releases</name>
+            <url>https://build.shibboleth.net/maven/releases/org/opensaml/</url>
+            <!-- Corrected URL to releases parent -->
+        </pluginRepository>
+    </pluginRepositories>
     <build>
         <plugins>
             <plugin>

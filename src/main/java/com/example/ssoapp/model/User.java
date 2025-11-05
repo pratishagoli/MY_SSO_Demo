@@ -34,6 +34,9 @@ public class User {
     @Column(nullable = true)
     private String providerId;
 
+    @Column(nullable = false, length = 50)
+    private String role = "USER";
+
     public User() {}
 
     public Long getId() {
@@ -64,6 +67,13 @@ public class User {
         return email;
     }
 
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getRole() {
+        return role;
+    }
     public void setEmail(String email) {
         this.email = email;
     }

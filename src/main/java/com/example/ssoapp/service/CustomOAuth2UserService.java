@@ -88,6 +88,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         newUser.setProviderId(providerId);
         newUser.setProvider(AuthProvider.MINIORANGE);
         newUser.setPassword(null);
+        newUser.setRole("USER"); // Default role for SSO users
 
         try {
             User saved = userRepository.saveAndFlush(newUser);

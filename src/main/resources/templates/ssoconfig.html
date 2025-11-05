@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSO Configuration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 0 2rem;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .logout-btn {
+            background-color: #d93025;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #c22015;
+        }
+
+        .back-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+            transition: background-color 0.2s ease;
+        }
+
+        .back-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .main-container {
+            padding: 2rem;
+        }
+
+        .dashboard-card {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-message {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #222;
+            margin: 0;
+        }
+
+        .sso-config-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            background-color: #fafafa;
+        }
+
+        .sso-config-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .sso-info {
+            flex: 1;
+        }
+
+        .sso-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .sso-description {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px #007bff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 1rem;
+        }
+
+        .status-enabled {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status-disabled {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .save-message {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .save-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .save-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .sso-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .action-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .edit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .edit-btn:hover {
+            background-color: #218838;
+        }
+
+        .test-btn {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .test-btn:hover {
+            background-color: #138496;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border: 1px solid #888;
+            border-radius: 8px;
+            width: 600px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .config-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .config-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .config-value {
+            color: #333;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+        }
+
+        .config-readonly {
+            background-color: #f5f5f5;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-logo">
+        SSO Configuration
+    </div>
+    <div>
+        <a href="/admindashboard" class="back-btn">Back to Dashboard</a>
+        <form id="logoutForm" th:action="@{/logout}" method="post" style="display: inline; margin: 0;">
+            <button type="submit" class="logout-btn">Logout</button>
+        </form>
+    </div>
+</header>
+
+<main class="main-container">
+    <div class="dashboard-card">
+        <div class="admin-header">
+            <h1 class="welcome-message">SSO Configuration</h1>
+        </div>
+
+        <div id="saveMessage" class="save-message"></div>
+
+        <div th:each="config : ${ssoConfigs}" class="sso-config-item">
+            <div class="sso-info">
+                <div class="sso-name">
+                    <span th:text="${config.ssoType}">SSO Type</span>
+                    <span class="status-badge" 
+                          th:classappend="${config.enabled} ? 'status-enabled' : 'status-disabled'"
+                          th:text="${config.enabled} ? 'Enabled' : 'Disabled'">Status</span>
+                </div>
+                <div class="sso-description" th:switch="${config.ssoType}">
+                    <span th:case="'JWT'">JSON Web Token authentication via MiniOrange</span>
+                    <span th:case="'OIDC'">OpenID Connect authentication via MiniOrange</span>
+                    <span th:case="'SAML'">SAML 2.0 authentication via MiniOrange</span>
+                    <span th:case="*">Single Sign-On authentication</span>
+                </div>
+            </div>
+            <div class="sso-actions">
+                <button class="action-button edit-btn" 
+                        th:data-sso-type="${config.ssoType}"
+                        onclick="showEditModal(this)">Edit</button>
+                <button class="action-button test-btn"
+                        th:data-sso-type="${config.ssoType}"
+                        onclick="testSso(this)">Test</button>
+                <label class="toggle-switch">
+                    <input type="checkbox" 
+                           th:checked="${config.enabled}"
+                           th:data-sso-type="${config.ssoType}"
+                           onchange="toggleSso(this)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeEditModal()">&times;</span>
+        <h2 id="editModalTitle">SSO Configuration</h2>
+        <div id="editModalContent"></div>
+        <div class="modal-buttons" style="margin-top: 20px;">
+            <button class="save-btn" onclick="saveSsoConfig()">Save</button>
+            <button class="cancel-btn" onclick="closeEditModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Test Result Modal -->
+<div id="testResultModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <span class="close" onclick="closeTestResultModal()">&times;</span>
+        <h2 id="testResultTitle">SSO Test Results</h2>
+        <div id="testResultContent">
+            <div id="testResultStatus" style="margin-bottom: 20px;"></div>
+            <div id="testResultAttributes"></div>
+        </div>
+        <div class="modal-buttons" style="margin-top: 20px;">
+            <button class="cancel-btn" onclick="closeTestResultModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    const csrfForm = document.getElementById('logoutForm');
+    let csrfToken = '';
+    let csrfParameterName = '';
+
+    if (csrfForm) {
+        const csrfInput = csrfForm.querySelector('input[name="_csrf"]');
+        if (csrfInput) {
+            csrfToken = csrfInput.value;
+            csrfParameterName = csrfInput.name;
+        }
+    }
+
+    if (!csrfToken) {
+        csrfToken = /*[[${_csrf.token}]]*/ '';
+        csrfParameterName = /*[[${_csrf.parameterName}]]*/ '';
+    }
+
+    function showMessage(message, isSuccess) {
+        const messageDiv = document.getElementById('saveMessage');
+        messageDiv.textContent = message;
+        messageDiv.className = 'save-message ' + (isSuccess ? 'success' : 'error');
+        messageDiv.style.display = 'block';
+        
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 3000);
+    }
+
+    async function toggleSso(checkbox) {
+        const ssoType = checkbox.getAttribute('data-sso-type');
+        const enabled = checkbox.checked;
+
+        try {
+            const response = await fetch(`/admin/sso/config/${ssoType}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    [csrfParameterName]: csrfToken
+                },
+                body: JSON.stringify({ enabled: enabled })
+            });
+
+            if (response.ok) {
+                showMessage(`${ssoType} SSO has been ${enabled ? 'enabled' : 'disabled'} successfully!`, true);
+                // Update status badge
+                const statusBadge = checkbox.closest('.sso-config-item').querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = enabled ? 'Enabled' : 'Disabled';
+                    statusBadge.className = 'status-badge ' + (enabled ? 'status-enabled' : 'status-disabled');
+                }
+            } else {
+                // Revert checkbox on error
+                checkbox.checked = !enabled;
+                const errorText = await response.text();
+                showMessage(`Failed to update ${ssoType} SSO: ${errorText}`, false);
+            }
+        } catch (error) {
+            // Revert checkbox on error
+            checkbox.checked = !enabled;
+            console.error('Error toggling SSO:', error);
+            showMessage(`An error occurred while updating ${ssoType} SSO.`, false);
+        }
+    }
+
+    async function showEditModal(button) {
+        const ssoType = button.getAttribute('data-sso-type');
+        const modal = document.getElementById('editModal');
+        const modalTitle = document.getElementById('editModalTitle');
+        const modalContent = document.getElementById('editModalContent');
+
+        modalTitle.textContent = `${ssoType} Configuration`;
+
+        try {
+            const response = await fetch(`/admin/sso/config/${ssoType}/details`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    [csrfParameterName]: csrfToken
+                }
+            });
+
+            if (response.ok) {
+                const config = await response.json();
+                let html = '';
+                
+                // Store config for saving
+                window.currentSsoConfig = config;
+                window.currentSsoType = ssoType;
+                
+                // Define which fields are editable vs read-only
+                const editableFields = {
+                    'JWT': ['clientId', 'issuer', 'redirectUri', 'loginUrl'],
+                    'OIDC': ['clientId', 'clientSecret', 'scope', 'issuerUri'],
+                    'SAML': ['entityId', 'metadataUrl', 'acsUrl', 'ssoServiceUrl', 'nameIdFormat']
+                };
+                
+                const editable = editableFields[ssoType] || [];
+                
+                for (const [key, value] of Object.entries(config)) {
+                    // Skip status and ssoType in display
+                    if (key === 'status' || key === 'ssoType') continue;
+                    
+                    const isEditable = editable.includes(key);
+                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    
+                    html += `
+                        <div class="config-item">
+                            <span class="config-label">${label}:</span>
+                            ${isEditable ? 
+                                `<input type="text" class="config-input" data-field="${key}" value="${value || ''}" placeholder="Enter ${label}">` :
+                                `<div class="config-value" style="padding: 8px; background: #f5f5f5; border-radius: 4px;">${value || 'N/A'}</div>`
+                            }
+                        </div>
+                    `;
+                }
+                
+                modalContent.innerHTML = html;
+                modal.style.display = 'flex';
+            } else {
+                showMessage('Failed to load configuration details', false);
+            }
+        } catch (error) {
+            console.error('Error loading config:', error);
+            showMessage('An error occurred while loading configuration', false);
+        }
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    function testSso(button) {
+        const ssoType = button.getAttribute('data-sso-type').toLowerCase();
+        
+        // Redirect to test endpoint which will initiate SSO flow
+        window.location.href = `/admin/sso/test/${ssoType}`;
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('editModal');
+        if (event.target == modal) {
+            closeEditModal();
+        }
+    }
+
+    async function saveSsoConfig() {
+        if (!window.currentSsoConfig || !window.currentSsoType) {
+            showMessage('No configuration loaded', false);
+            return;
+        }
+
+        const modalContent = document.getElementById('editModalContent');
+        const inputs = modalContent.querySelectorAll('.config-input');
+        const updatedConfig = { ...window.currentSsoConfig };
+
+        // Collect updated values
+        inputs.forEach(input => {
+            const field = input.getAttribute('data-field');
+            updatedConfig[field] = input.value;
+        });
+
+        try {
+            const response = await fetch(`/admin/sso/config/${window.currentSsoType}/update`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    [csrfParameterName]: csrfToken
+                },
+                body: JSON.stringify(updatedConfig)
+            });
+
+            if (response.ok) {
+                showMessage(`${window.currentSsoType} configuration updated successfully!`, true);
+                closeEditModal();
+            } else {
+                const errorText = await response.text();
+                showMessage(`Failed to update configuration: ${errorText}`, false);
+            }
+        } catch (error) {
+            console.error('Error saving config:', error);
+            showMessage('An error occurred while saving configuration', false);
+        }
+    }
+
+    function closeTestResultModal() {
+        const modal = document.getElementById('testResultModal');
+        modal.style.display = 'none';
+        // Clear test result from session
+        fetch('/admin/sso/test/result', {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                [csrfParameterName]: csrfToken
+            }
+        });
+    }
+
+    function showTestResultModal(testResult) {
+        const modal = document.getElementById('testResultModal');
+        const statusDiv = document.getElementById('testResultStatus');
+        const attributesDiv = document.getElementById('testResultAttributes');
+        
+        const testType = testResult.testType || 'Unknown';
+        const testStatus = testResult.testStatus || 'error';
+        const attributes = testResult.attributes || {};
+        
+        // Status badge
+        const statusClass = testStatus === 'success' ? 'status-badge success' : 'status-badge error';
+        const statusText = testStatus === 'success' ? 'Success' : 'Failed';
+        statusDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">${testType} Test Results</h3>
+                <span class="${statusClass}" style="padding: 0.5rem 1rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600; background-color: ${testStatus === 'success' ? '#28a745' : '#dc3545'}; color: white;">${statusText}</span>
+            </div>
+        `;
+        
+        // Attributes table
+        let attributesHtml = '<table style="width: 100%; border-collapse: collapse; margin-top: 1rem;"><thead><tr><th style="padding: 12px; text-align: left; background: #f8f8f8; border-bottom: 1px solid #eee;">Attribute</th><th style="padding: 12px; text-align: left; background: #f8f8f8; border-bottom: 1px solid #eee;">Value</th></tr></thead><tbody>';
+        
+        if (testResult.token) {
+            attributesHtml += `<tr><td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">Token</td><td style="padding: 12px; border-bottom: 1px solid #eee; word-break: break-all; font-family: monospace; font-size: 0.9rem;">${testResult.token}</td></tr>`;
+        }
+        
+        for (const [key, value] of Object.entries(attributes)) {
+            attributesHtml += `<tr><td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: 600;">${key}</td><td style="padding: 12px; border-bottom: 1px solid #eee; word-break: break-all; font-family: monospace; font-size: 0.9rem;">${value}</td></tr>`;
+        }
+        
+        attributesHtml += '</tbody></table>';
+        attributesDiv.innerHTML = attributesHtml;
+        
+        modal.style.display = 'flex';
+    }
+
+    // Check for test result on page load
+    window.addEventListener('load', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('test') === 'success') {
+            // Fetch test result from server
+            fetch('/admin/sso/test/result', {
+                method: 'GET',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    [csrfParameterName]: csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && Object.keys(data).length > 0) {
+                    showTestResultModal(data);
+                    // Remove test parameter from URL
+                    window.history.replaceState({}, document.title, '/admin/sso/config');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching test result:', error);
+            });
+        }
+    });
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('editModal');
+        const testModal = document.getElementById('testResultModal');
+        if (event.target == modal) {
+            closeEditModal();
+        }
+        if (event.target == testModal) {
+            closeTestResultModal();
+        }
+    }
+</script>
+
+</body>
+</html>
+

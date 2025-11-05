@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,6 +20,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             width: 350px;
             text-align: center;
+            position: relative; /* For modal overlay */
         }
         .login-card h2 {
             margin-top: 0;
@@ -63,6 +64,7 @@
             text-align: left;
             margin-top: 0.5rem;
             height: 1em;
+            transition: color 0.3s ease;
         }
         .error-message { color: #d93025; }
         .success-message { color: #1e8e3e; }
@@ -70,13 +72,49 @@
             margin-top: 1.5rem;
             font-size: 0.9em;
         }
+
+        /* Custom Modal Styles (replaces alert) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            width: 300px;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            color: #1e8e3e;
+        }
+        .modal-content button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
 
 <div class="login-card">
     <h2>Create Account</h2>
-    <form id="signUpForm">
+    <form id="signUpForm" method="POST" action="/register-user" th:action="@{/register-user}">
         <div class="form-group">
             <label for="new-username">Username:</label>
             <input type="text" id="new-username" name="username" required>
@@ -90,6 +128,8 @@
             <input type="password" id="new-password" name="password" minlength="6" required>
         </div>
 
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf}" />
+
         <div id="signUpMessage" class="message"></div>
 
         <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Sign Up</button>
@@ -100,7 +140,74 @@
     </p>
 </div>
 
+<!-- Custom Confirmation Modal -->
+<div id="successModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Success!</h3>
+        <p>Your account was created successfully.</p>
+        <button id="modalOkButton">OK</button>
+    </div>
+</div>
 
+
+<script>
+    const signUpForm = document.getElementById('signUpForm');
+    const messageBox = document.getElementById('signUpMessage');
+    const successModal = document.getElementById('successModal');
+    const modalOkButton = document.getElementById('modalOkButton');
+
+
+    signUpForm.addEventListener('submit', function(event) {
+        // 1. Prevent the default browser navigation
+        event.preventDefault();
+
+        const form = event.target;
+        // This line includes the hidden CSRF field (if present in the form)
+        const formData = new URLSearchParams(new FormData(form)).toString();
+
+        messageBox.className = 'message success-message';
+        messageBox.textContent = 'Registering user...';
+
+        // 2. Make the POST request using Fetch API
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                // Important to set content type for Spring to parse the form data
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+        })
+        .then(response => {
+            // Check if the response status indicates success (e.g., 200-299)
+            if (response.ok) {
+                // 3. On success, show the custom modal
+                messageBox.textContent = ''; // Clear message
+                successModal.style.display = 'flex';
+
+                // Clear the form fields after successful submission
+                form.reset();
+            } else {
+                // If the backend returns an error (e.g., 400 Bad Request, 409 Conflict)
+                return response.text().then(errorMessage => {
+                    throw new Error(errorMessage || 'Registration failed due to server error.');
+                });
+            }
+        })
+        .catch(error => {
+            // 4. Handle network or server processing errors
+            console.error('Registration error:', error);
+            messageBox.className = 'message error-message';
+            messageBox.textContent = 'Error: Account creation failed or email already in use.';
+        });
+    });
+
+    // 5. Handle the "OK" button click on the modal
+    modalOkButton.addEventListener('click', function() {
+        successModal.style.display = 'none';
+        // 6. Redirect to the login page
+        window.location.href = '/login';
+    });
+</script>
 
 </body>
 </html>

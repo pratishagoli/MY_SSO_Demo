@@ -7,6 +7,7 @@ package com.example.ssoapp.model;
  */
 public enum AuthProvider {
     LOCAL,
+    SAML,
     //GOOGLE,
     MINIORANGE
 }

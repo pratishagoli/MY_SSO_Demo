@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -107,7 +107,7 @@
 
 <div class="login-card">
     <h2>Sign In</h2>
-    <form id="signInForm">
+    <form th:action="@{/login}" method="post" >
         <div class="form-group">
             <label for="username">Username or Email:</label>
             <input type="text" id="username" name="username" required>
@@ -116,16 +116,37 @@
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required>
         </div>
-        <div id="signInError" class="error-message"></div>
+        <div id="signInError" class="error-message" th:if="${param.error}">
+            <span th:if="${param.error[0] == 'saml_failed'}">
+                SAML Authentication Failed. Please check the logs for details.
+                <span th:if="${param.details}" th:text="' Error: ' + ${param.details[0]}"></span>
+            </span>
+            <span th:if="${param.error[0] != 'saml_failed'}" th:text="${param.error[0]}"></span>
+        </div>
 
         <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Sign In</button>
     </form>
 
-    <div class="separator">OR</div>
+    <div th:if="${(oidcEnabled ?: false) or (jwtEnabled ?: false) or (samlEnabled ?: false)}">OR</div>
 
-    <a href="/oauth2/authorization/miniorange" class="btn btn-google" style="background-color:#EB5424;">
-        <span>Sign in with MiniOrange SSO</span>
+    <a th:if="${oidcEnabled}" href="/oauth2/authorization/miniorange" class="btn btn-google" style="background-color:#EB5424;">
+        <span>Login with Oauth</span>
     </a>
+
+    <a th:if="${jwtEnabled}"
+       href="https://pratisha.xecurify.com/moas/idp/jwtsso/379428?client_id=4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f&redirect_uri=http://localhost:8080/auth/jwt/callback"
+       class="btn btn-google"
+       style="background-color:#0066cc; margin-top: 10px;">
+        <span>Login with JWT (MiniOrange)</span>
+    </a>
+
+    <a th:if="${samlEnabled}"
+       href="/saml2/authenticate/miniorange-saml"
+       class="btn btn-google"
+       style="background-color:#536486; margin-top: 10px;">
+        <span>Login with SAML (MiniOrange)</span>
+    </a>
+
 
     <p class="signup-link">
         Don't have an account? <a href="/signup">Sign Up</a>
