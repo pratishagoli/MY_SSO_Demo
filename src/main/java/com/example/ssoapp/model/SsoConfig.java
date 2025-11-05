@@ -5,6 +5,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
 
 @Entity
 @Table(name = "sso_config")
@@ -25,6 +26,19 @@ public class SsoConfig {
     // Test result fields (not directly related to the fix, but included for completeness)
     private String lastAssertion;
     private String lastTestStatus;
+
+    @Column(length = 1000)
+    private String idpEntityId;
+
+    @Column(length = 1000)
+    private String idpSsoUrl;
+
+    @Column(columnDefinition = "TEXT") // Store full certificate content
+    private String idpCertificateContent;
+
+    @Column(length = 1000)
+    private String spEntityId;
+
 
     // Default constructor for JPA
     public SsoConfig() {
@@ -100,5 +114,38 @@ public class SsoConfig {
 
     public void setLastTestStatus(String lastTestStatus) {
         this.lastTestStatus = lastTestStatus;
+    }
+
+    // --- 👇 ADD GETTERS AND SETTERS FOR SAML FIELDS ---
+    public String getIdpEntityId() {
+        return idpEntityId;
+    }
+
+    public void setIdpEntityId(String idpEntityId) {
+        this.idpEntityId = idpEntityId;
+    }
+
+    public String getIdpSsoUrl() {
+        return idpSsoUrl;
+    }
+
+    public void setIdpSsoUrl(String idpSsoUrl) {
+        this.idpSsoUrl = idpSsoUrl;
+    }
+
+    public String getIdpCertificateContent() {
+        return idpCertificateContent;
+    }
+
+    public void setIdpCertificateContent(String idpCertificateContent) {
+        this.idpCertificateContent = idpCertificateContent;
+    }
+
+    public String getSpEntityId() {
+        return spEntityId;
+    }
+
+    public void setSpEntityId(String spEntityId) {
+        this.spEntityId = spEntityId;
     }
 }

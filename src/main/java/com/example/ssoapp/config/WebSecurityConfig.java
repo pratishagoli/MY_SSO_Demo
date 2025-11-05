@@ -26,6 +26,7 @@ import org.springframework.security.saml2.provider.service.registration.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -58,7 +59,7 @@ public class WebSecurityConfig {
     // MAIN SECURITY CONFIG
     // ========================
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,RelyingPartyRegistrationRepository relyingPartyRegistrationRepository) throws Exception {
         http
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
 
@@ -138,6 +139,7 @@ public class WebSecurityConfig {
                 // ---------- SAML2 LOGIN ----------
                 .saml2Login(saml2 -> saml2
                         .loginPage("/login")
+                        .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository) // 👈 TELL SPRING TO USE IT
                         .successHandler((request, response, authentication) -> {
                             org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Login");
                             logger.info("=== SAML2 LOGIN SUCCESS HANDLER INVOKED ===");
@@ -188,35 +190,7 @@ public class WebSecurityConfig {
     // ========================
     // SAML CONFIGURATION
     // ========================
-    @Bean
-    public RelyingPartyRegistrationRepository relyingPartyRegistrationRepository() {
-        String idpMetadataUrl = "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956";
 
-        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(RelyingPartyRegistrationRepository.class);
-        logger.info("=== CONFIGURING SAML RELYING PARTY REGISTRATION ===");
-        logger.info("IdP Metadata URL: {}", idpMetadataUrl);
-        logger.info("Registration ID: miniorange-saml");
-        logger.info("Entity ID: ssoapp");
-        logger.info("ACS Location: http://localhost:8080/login/saml2/sso/miniorange-saml");
-
-        // Certificate is automatically extracted from metadata URL
-        // No need for separate certificate file - Spring Security extracts it from metadata
-        try {
-            RelyingPartyRegistration registration = RelyingPartyRegistrations
-                    .fromMetadataLocation(idpMetadataUrl)
-                    .registrationId("miniorange-saml")
-                    .entityId("ssoapp")  // your SP entity ID
-                    .assertionConsumerServiceLocation("http://localhost:8080/login/saml2/sso/miniorange-saml")
-                    .build();
-
-            logger.info("SAML Relying Party Registration created successfully");
-
-            return new InMemoryRelyingPartyRegistrationRepository(registration);
-        } catch (Exception e) {
-            logger.error("CRITICAL: Failed to create SAML Relying Party Registration", e);
-            throw new RuntimeException("Failed to configure SAML", e);
-        }
-    }
 
     @Bean
     public OpenSaml4AuthenticationProvider samlAuthenticationProvider() {

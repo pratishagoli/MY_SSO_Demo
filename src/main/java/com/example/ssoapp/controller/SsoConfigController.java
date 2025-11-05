@@ -53,55 +53,67 @@ public class SsoConfigController {
     @PreAuthorize("hasAuthority('ADMIN')")
     @ResponseBody
     public ResponseEntity<Map<String, String>> getSsoConfigDetails(@PathVariable String ssoType) {
-        Map<String, String> config = new HashMap<>();
         String type = ssoType.toUpperCase();
-        
-        // Read from application properties or use defaults
+        SsoConfig config = ssoConfigService.getSsoConfigByType(type);
+        Map<String, String> configMap = new HashMap<>();
+
+        // Common properties
+        configMap.put("ssoType", type);
+        configMap.put("status", config.getEnabled() ? "Enabled" : "Disabled");
+        configMap.put("provider", "MiniOrange");
+
+        // Read properties from database
         switch (type) {
             case "JWT":
-                config.put("protocol", "JWT (JSON Web Token)");
-                config.put("clientId", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
-                config.put("issuer", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
-                config.put("redirectUri", "http://localhost:8080/auth/jwt/callback");
-                config.put("loginUrl", "https://pratisha.xecurify.com/moas/idp/jwtsso/379428");
-                config.put("provider", "MiniOrange");
+                configMap.put("protocol", "JWT (JSON Web Token)");
+                // These are hardcoded in your app.properties
+                configMap.put("clientId", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
+                configMap.put("issuer", "4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f");
+                configMap.put("redirectUri", "http://localhost:8080/auth/jwt/callback");
+                configMap.put("loginUrl", "https://pratisha.xecurify.com/moas/idp/jwtsso/379428");
                 break;
             case "OIDC":
-                config.put("protocol", "OIDC (OpenID Connect)");
-                config.put("clientId", "NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
-                config.put("clientSecret", "rbHqjgFowkLiOvKnURJV4LEUSEFlzWNj");
-                config.put("scope", "openid,profile,email");
-                config.put("issuerUri", "https://pratisha.xecurify.com/moas/discovery/v2.0/NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
-                config.put("grantType", "authorization_code");
-                config.put("provider", "MiniOrange");
+                configMap.put("protocol", "OIDC (OpenID Connect)");
+                // These are hardcoded in your app.properties
+                configMap.put("clientId", "NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
+                configMap.put("clientSecret", "rbHqjgFowkLiOvKnURJV4LEUSEFlzWNj");
+                configMap.put("scope", "openid,profile,email");
+                configMap.put("issuerUri", "https://pratisha.xecurify.com/moas/discovery/v2.0/NeXKWs6a9g0lywwLQAoBPwntbNV91HdT");
+                configMap.put("grantType", "authorization_code");
                 break;
             case "SAML":
-                config.put("protocol", "SAML 2.0");
-                config.put("entityId", "ssoapp");
-                config.put("metadataUrl", "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956");
-                config.put("acsUrl", "http://localhost:8080/login/saml2/sso/miniorange-saml");
-                config.put("ssoServiceUrl", "https://pratisha.xecurify.com/moas/idp/samlsso/b27ecbfc-6e7c-4f59-b84b-bdb1c967ef3a");
-                config.put("nameIdFormat", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
-                config.put("provider", "MiniOrange");
+                configMap.put("protocol", "SAML 2.0");
+                // These now come from the DATABASE
+                configMap.put("entityId", config.getSpEntityId());
+                configMap.put("metadataUrl", config.getConfigUrl()); // The metadata URL from miniOrange
+                configMap.put("ssoServiceUrl", config.getIdpSsoUrl()); // The "SAML Login URL"
+                configMap.put("idpEntityId", config.getIdpEntityId()); // The "IDP Entity ID or Issuer"
+                configMap.put("idpCertificateContent", config.getIdpCertificateContent()); // The "X.509 Certificate"
+
+                // This is static for your app
+                configMap.put("acsUrl", "http://localhost:8080/login/saml2/sso/miniorange-saml");
+                configMap.put("nameIdFormat", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
                 break;
             default:
                 return ResponseEntity.badRequest().build();
         }
-        
-        SsoConfig ssoConfig = ssoConfigService.getSsoConfigByType(type);
-        config.put("status", ssoConfig.getEnabled() ? "Enabled" : "Disabled");
-        config.put("ssoType", type);
-        
-        return ResponseEntity.ok(config);
+
+        return ResponseEntity.ok(configMap);
     }
 
     @PutMapping("/config/{ssoType}/update")
     @PreAuthorize("hasAuthority('ADMIN')")
     @ResponseBody
-    public ResponseEntity<?> updateSsoConfigDetails(@PathVariable String ssoType, @RequestBody Map<String, String> config) {
-        // For now, just return success - actual property updates would require application restart
-        // In production, you might want to update properties file or use a configuration service
-        return ResponseEntity.ok("Configuration updated. Note: Some changes may require application restart.");
+    public ResponseEntity<?> updateSsoConfigDetails(@PathVariable String ssoType, @RequestBody Map<String, String> details) {
+        try {
+            // This is the method that needs to exist in your SsoConfigService
+            // It will find the config and update its fields
+            SsoConfig updatedConfig = ssoConfigService.updateSsoConfigDetails(ssoType.toUpperCase(), details);
+            return ResponseEntity.ok(updatedConfig);
+        } catch (Exception e) {
+            logger.error("Failed to update config details for {}: {}", ssoType, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to update configuration: " + e.getMessage());
+        }
     }
 
     @GetMapping("/test/{ssoType}")

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ public class SsoConfigService {
 
     @Autowired
     private SsoConfigRepository ssoConfigRepository;
+    private static final String DEFAULT_SP_ENTITY_ID = "ssoapp";
 
     // Hardcoded metadata URL to ensure it's set on initialization
     private static final String DEFAULT_SAML_METADATA_URL = "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956";
@@ -47,6 +49,7 @@ public class SsoConfigService {
     }
 
     @Transactional
+    @CacheEvict(value = "ssoConfigs", allEntries = true)
     public SsoConfig updateSsoConfig(String ssoType, Boolean enabled) {
         Optional<SsoConfig> existing = ssoConfigRepository.findBySsoType(ssoType);
 
@@ -63,6 +66,7 @@ public class SsoConfigService {
     }
 
     @Transactional
+    @CacheEvict(value = "ssoConfigs", allEntries = true)
     public void initializeDefaultConfigs() {
         // Initialize default configurations if they don't exist
         String[] ssoTypes = {"JWT", "OIDC", "SAML"};
@@ -73,6 +77,7 @@ public class SsoConfigService {
                 // FIX: If this is the SAML config, set the default URL
                 if ("SAML".equals(ssoType)) {
                     config.setConfigUrl(DEFAULT_SAML_METADATA_URL);
+                    config.setSpEntityId(DEFAULT_SP_ENTITY_ID);
                     logger.info("Initializing default SAML config with metadata URL: {}", DEFAULT_SAML_METADATA_URL);
                 } else {
                     logger.info("Initialized default SSO config for {}", ssoType);
@@ -107,6 +112,7 @@ public class SsoConfigService {
      * @param details A map of configuration keys to update (e.g., "configUrl" -> "http://...")
      */
     @Transactional
+    @CacheEvict(value = "ssoConfigs", allEntries = true)
     public SsoConfig updateSsoConfigDetails(String ssoType, Map<String, String> details) {
         SsoConfig config = ssoConfigRepository.findBySsoType(ssoType)
                 .orElse(new SsoConfig(ssoType, true)); // Create if not exists
