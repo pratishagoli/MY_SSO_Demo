@@ -30,17 +30,28 @@
     <h1>Superadmin Dashboard</h1>
     <p>Welcome, <strong th:text="${username}">Superadmin User</strong>. You are managing all tenants.</p>
 
-    <div th:if="${successMessage}" class="success" th:text="${successMessage}"></div>
     <div th:if="${errorMessage}" class="error" th:text="${errorMessage}"></div>
+    <div th:if="${param.success}" class="success">Tenant created successfully!</div>
+
+    <div th:if="${#fields.hasErrors('createTenantRequest')}" class="error">
+        <ul>
+            <li th:each="err : ${#fields.errors('createTenantRequest.*')}" th:text="${err}">Validation Error</li>
+        </ul>
+    </div>
+
 
     <h2>Create New Tenant</h2>
-    <form th:action="@{/superadmin/create-tenant}" method="post" class="tenant-form">
+    <form th:action="@{/superadmin/create-tenant}" th:object="${createTenantRequest}" method="post" class="tenant-form">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
-        <input type="text" name="name" placeholder="Tenant Name (e.g., Company A)" required>
-        <input type="email" name="email" placeholder="Tenant Admin Email" required>
-        <input type="password" name="password" placeholder="Tenant Admin Password (min 6 chars)" required>
-        <input type="text" name="subdomain" placeholder="Subdomain (e.g., tenant1)" required>
+        <input type="text" th:field="*{orgName}" placeholder="Tenant Name (e.g., Company A)" required>
+
+        <input type="email" th:field="*{adminEmail}" placeholder="Tenant Admin Email" required>
+
+        <input type="password" th:field="*{adminPassword}" placeholder="Tenant Admin Password (min 6 chars)" required>
+
+        <input type="text" th:field="*{subdomain}" placeholder="Subdomain (e.g., tenant1)" required>
+
         <button type="submit">Create Tenant</button>
     </form>
 
@@ -56,10 +67,9 @@
         </thead>
         <tbody>
         <tr th:each="tenant : ${tenants}">
-            <td th:text="${tenant.tenantId}">tenant1</td>
-            <td th:text="${tenant.email}">admin@tenant1.com</td>
-            <td th:text="${tenant.subdomain}">tenant1.localhost</td>
-            <td><a th:href="@{'/superadmin/users?tenantId=' + ${tenant.tenantId}}">View Users</a></td>
+            <td th:text="${tenant.id}">tenant1</td>
+            <td th:text="${tenant.name}">Company Name</td> <td th:text="${tenant.subdomain}">tenant1.localhost</td>
+            <td><a th:href="@{'/superadmin/users?tenantId=' + ${tenant.id}}">View Users</a></td>
         </tr>
         <tr th:if="${#lists.isEmpty(tenants)}">
             <td colspan="4">No tenants found.</td>

@@ -129,9 +129,10 @@ public class WebController {
 
         model.addAttribute("username", username);
 
-        // 🚀 NEW LOGIC: Route based on role
+        // 🚀 FIXED LOGIC: Route based on role
         if ("SUPERADMIN".equals(role)) {
             // Redirect SUPERADMIN to its specific controller/page
+            // ✅ FIXED: Corrected path from "/superadmin-dashboard" to "/superadmin/dashboard"
             return "redirect:/superadmin/dashboard";
         }
 
