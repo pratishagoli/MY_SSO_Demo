@@ -26,6 +26,9 @@ public class TenantService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private SsoConfigService ssoConfigService;
+
     // ============================================================
     // ✅ 1️⃣  CREATE TENANT (For SuperAdmin)
     // ============================================================
@@ -46,6 +49,8 @@ public class TenantService {
         tenant.setAdminEmail(adminEmail);
         tenant.setSubdomain(subdomain);
         Tenant savedTenant = tenantRepository.save(tenant);
+
+        ssoConfigService.initializeDefaultConfigsForTenant(savedTenant.getId());
 
         // Create admin user for this tenant
         User adminUser = new User();

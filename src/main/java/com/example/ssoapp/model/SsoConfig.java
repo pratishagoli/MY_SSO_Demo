@@ -1,11 +1,6 @@
 package com.example.ssoapp.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.Column;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "sso_config")
@@ -15,15 +10,17 @@ public class SsoConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // 🚀 NEW: Make SSO config tenant-specific
+    @Column(name = "tenant_id", nullable = true)
+    private Long tenantId; // NULL = global/superadmin config, NOT NULL = tenant-specific
+
     private String ssoType;
     private Boolean enabled;
-    private String configUrl; // Used for SAML Metadata URL or OIDC issuer URL
+    private String configUrl;
 
-    // NEW FIELDS ADDED HERE
-    private String verificationCertificate; // For IdP certificate
-    private String signingKey;              // For SP signing key
-
-    // Test result fields (not directly related to the fix, but included for completeness)
+    // ... rest of existing fields ...
+    private String verificationCertificate;
+    private String signingKey;
     private String lastAssertion;
     private String lastTestStatus;
 
@@ -33,7 +30,7 @@ public class SsoConfig {
     @Column(length = 1000)
     private String idpSsoUrl;
 
-    @Column(columnDefinition = "TEXT") // Store full certificate content
+    @Column(columnDefinition = "TEXT")
     private String idpCertificateContent;
 
     @Column(length = 1000)
@@ -46,139 +43,81 @@ public class SsoConfig {
     private String clientSecret;
 
     @Column(length = 1000)
-    private String issuerUri; // For OIDC or JWT issuer
+    private String issuerUri;
 
-    // Default constructor for JPA
-    public SsoConfig() {
-    }
+    // Constructors
+    public SsoConfig() {}
 
     public SsoConfig(String ssoType, Boolean enabled) {
         this.ssoType = ssoType;
         this.enabled = enabled;
     }
 
-    // --- Getters and Setters ---
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getSsoType() {
-        return ssoType;
-    }
-
-    public void setSsoType(String ssoType) {
+    // 🚀 NEW: Constructor with tenant
+    public SsoConfig(Long tenantId, String ssoType, Boolean enabled) {
+        this.tenantId = tenantId;
         this.ssoType = ssoType;
-    }
-
-    public Boolean getEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
     }
 
-    public String getConfigUrl() {
-        return configUrl;
+    // Getters and Setters (ADD THIS NEW ONE)
+
+    public Long getTenantId() {
+        return tenantId;
     }
 
-    public void setConfigUrl(String configUrl) {
-        this.configUrl = configUrl;
+    public void setTenantId(Long tenantId) {
+        this.tenantId = tenantId;
     }
 
-    // NEW GETTERS AND SETTERS ADDED HERE
-    public String getVerificationCertificate() {
-        return verificationCertificate;
-    }
+    // ... rest of your existing getters/setters remain the same ...
 
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getSsoType() { return ssoType; }
+    public void setSsoType(String ssoType) { this.ssoType = ssoType; }
+
+    public Boolean getEnabled() { return enabled; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+
+    public String getConfigUrl() { return configUrl; }
+    public void setConfigUrl(String configUrl) { this.configUrl = configUrl; }
+
+    public String getVerificationCertificate() { return verificationCertificate; }
     public void setVerificationCertificate(String verificationCertificate) {
         this.verificationCertificate = verificationCertificate;
     }
 
-    public String getSigningKey() {
-        return signingKey;
-    }
+    public String getSigningKey() { return signingKey; }
+    public void setSigningKey(String signingKey) { this.signingKey = signingKey; }
 
-    public void setSigningKey(String signingKey) {
-        this.signingKey = signingKey;
-    }
+    public String getLastAssertion() { return lastAssertion; }
+    public void setLastAssertion(String lastAssertion) { this.lastAssertion = lastAssertion; }
 
-    public String getLastAssertion() {
-        return lastAssertion;
-    }
+    public String getLastTestStatus() { return lastTestStatus; }
+    public void setLastTestStatus(String lastTestStatus) { this.lastTestStatus = lastTestStatus; }
 
-    public void setLastAssertion(String lastAssertion) {
-        this.lastAssertion = lastAssertion;
-    }
+    public String getIdpEntityId() { return idpEntityId; }
+    public void setIdpEntityId(String idpEntityId) { this.idpEntityId = idpEntityId; }
 
-    public String getLastTestStatus() {
-        return lastTestStatus;
-    }
+    public String getIdpSsoUrl() { return idpSsoUrl; }
+    public void setIdpSsoUrl(String idpSsoUrl) { this.idpSsoUrl = idpSsoUrl; }
 
-    public void setLastTestStatus(String lastTestStatus) {
-        this.lastTestStatus = lastTestStatus;
-    }
-
-    // --- 👇 ADD GETTERS AND SETTERS FOR SAML FIELDS ---
-    public String getIdpEntityId() {
-        return idpEntityId;
-    }
-
-    public void setIdpEntityId(String idpEntityId) {
-        this.idpEntityId = idpEntityId;
-    }
-
-    public String getIdpSsoUrl() {
-        return idpSsoUrl;
-    }
-
-    public void setIdpSsoUrl(String idpSsoUrl) {
-        this.idpSsoUrl = idpSsoUrl;
-    }
-
-    public String getIdpCertificateContent() {
-        return idpCertificateContent;
-    }
-
+    public String getIdpCertificateContent() { return idpCertificateContent; }
     public void setIdpCertificateContent(String idpCertificateContent) {
         this.idpCertificateContent = idpCertificateContent;
     }
 
-    public String getSpEntityId() {
-        return spEntityId;
-    }
+    public String getSpEntityId() { return spEntityId; }
+    public void setSpEntityId(String spEntityId) { this.spEntityId = spEntityId; }
 
-    public void setSpEntityId(String spEntityId) {
-        this.spEntityId = spEntityId;
-    }
+    public String getClientId() { return clientId; }
+    public void setClientId(String clientId) { this.clientId = clientId; }
 
-    // --- New Getters and Setters for OIDC/JWT ---
-    public String getClientId() {
-        return clientId;
-    }
+    public String getClientSecret() { return clientSecret; }
+    public void setClientSecret(String clientSecret) { this.clientSecret = clientSecret; }
 
-    public void setClientId(String clientId) {
-        this.clientId = clientId;
-    }
-
-    public String getClientSecret() {
-        return clientSecret;
-    }
-
-    public void setClientSecret(String clientSecret) {
-        this.clientSecret = clientSecret;
-    }
-
-    public String getIssuerUri() {
-        return issuerUri;
-    }
-
-    public void setIssuerUri(String issuerUri) {
-        this.issuerUri = issuerUri;
-    }
+    public String getIssuerUri() { return issuerUri; }
+    public void setIssuerUri(String issuerUri) { this.issuerUri = issuerUri; }
 }

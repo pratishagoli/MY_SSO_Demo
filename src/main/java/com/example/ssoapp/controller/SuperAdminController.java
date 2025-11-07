@@ -1,12 +1,18 @@
 package com.example.ssoapp.controller;
 
-import com.example.ssoapp.config.TenantContext; // 👈 NEW IMPORT
+import com.example.ssoapp.config.TenantContext;
 import com.example.ssoapp.dto.CreateTenantRequest;
 import com.example.ssoapp.dto.TenantMinimalDTO;
 import com.example.ssoapp.model.Tenant;
-import com.example.ssoapp.model.User; // 👈 NEW IMPORT
-import com.example.ssoapp.repository.UserRepository; // 👈 NEW IMPORT
+import com.example.ssoapp.model.User;
+import com.example.ssoapp.repository.UserRepository;
 import com.example.ssoapp.service.TenantService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.Filter;
+import org.hibernate.Session;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,29 +22,36 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
-import java.util.stream.Collectors; // 👈 NEW IMPORT
+import java.util.stream.Collectors;
 
 /**
  * Controller for SuperAdmin operations:
  * - View all tenants
  * - Create new tenant
- * - Delete or manage tenants
+ * - View users for a specific tenant
  */
 @Controller
 @RequestMapping("/superadmin")
 public class SuperAdminController {
 
+    private static final Logger logger = LoggerFactory.getLogger(SuperAdminController.class);
+
     @Autowired
     private TenantService tenantService;
 
     @Autowired
-    private UserRepository userRepository; // 👈 NEWLY INJECTED
+    private UserRepository userRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // ============================================================
     // ✅ 1. SUPERADMIN DASHBOARD
     // ============================================================
     @GetMapping("/dashboard")
     public String showDashboard(Model model, @AuthenticationPrincipal UserDetails userDetails) {
+        logger.info("SuperAdmin dashboard accessed by: {}", userDetails != null ? userDetails.getUsername() : "unknown");
+
         List<TenantMinimalDTO> tenants = tenantService.findAllTenantMinimal();
         model.addAttribute("tenants", tenants);
 
@@ -53,20 +66,31 @@ public class SuperAdminController {
     }
 
     // ============================================================
-    // ✅ 2. VIEW USERS FOR A SPECIFIC TENANT (THIS IS THE FIX)
+    // ✅ 2. VIEW USERS FOR A SPECIFIC TENANT (FIXED VERSION)
     // ============================================================
     @GetMapping("/users")
     public String viewTenantUsers(@RequestParam("tenantId") Long tenantId, Model model) {
-
-        // 1. Manually set the TenantContext for this request.
-        // This forces userRepository.findAll() to only return users for this tenant.
-        TenantContext.setTenantId(String.valueOf(tenantId));
+        logger.info("=== SuperAdmin viewing users for tenantId: {} ===", tenantId);
 
         try {
-            // 2. Fetch users for this tenant (Hibernate Filter is now active)
-            List<User> allUsers = userRepository.findAll();
+            // Verify tenant exists
+            Tenant tenant = tenantService.getTenantById(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Tenant not found with ID: " + tenantId));
 
-            // 3. Separate users into native and SSO lists (for the admindashboard.html template)
+            logger.info("Found tenant: {} (subdomain: {})", tenant.getName(), tenant.getSubdomain());
+
+            // Get Hibernate session and enable tenant filter
+            Session session = entityManager.unwrap(Session.class);
+            Filter filter = session.enableFilter("tenantFilter");
+            filter.setParameter("tenantId", tenantId);
+
+            logger.info("Hibernate tenant filter enabled for tenantId: {}", tenantId);
+
+            // Fetch users for this tenant (filter is now active)
+            List<User> allUsers = userRepository.findAll();
+            logger.info("Found {} users for tenant {}", allUsers.size(), tenantId);
+
+            // Separate users into native and SSO lists
             List<User> nativeUsers = allUsers.stream()
                     .filter(u -> u.getProvider() == com.example.ssoapp.model.AuthProvider.LOCAL)
                     .collect(Collectors.toList());
@@ -75,46 +99,35 @@ public class SuperAdminController {
                     .filter(u -> u.getProvider() != com.example.ssoapp.model.AuthProvider.LOCAL)
                     .collect(Collectors.toList());
 
-            // 4. Add data to the model
+            logger.info("Native users: {}, SSO users: {}", nativeUsers.size(), ssoUsers.size());
+
+            // Add data to the model
             model.addAttribute("nativeUsers", nativeUsers);
             model.addAttribute("ssoUsers", ssoUsers);
-            model.addAttribute("tenantId", tenantId); // For context
+            model.addAttribute("tenantId", tenantId);
+            model.addAttribute("tenantName", tenant.getName());
 
-            // 5. Return the correct template
-            return "admindashboard"; // 👈 Renders templates/admindashboard.html
+            // Disable the filter after use
+            session.disableFilter("tenantFilter");
 
-        } finally {
-            // 6. CRITICAL: Always clear the context after use
-            TenantContext.clear();
+            return "admindashboard";
+
+        } catch (Exception e) {
+            logger.error("ERROR viewing tenant users for tenantId {}: {}", tenantId, e.getMessage(), e);
+            model.addAttribute("errorMessage", "Failed to load users: " + e.getMessage());
+            return "redirect:/superadmin/dashboard?error=load_users_failed";
         }
     }
 
-
     // ============================================================
-    // ✅ 3. LIST ALL TENANTS (Minimal DTO)
-    // ============================================================
-    @GetMapping("/tenants")
-    public String listTenants(Model model) {
-        // This is now redundant since the dashboard shows the list, so just redirect.
-        return "redirect:/superadmin/dashboard";
-    }
-
-    // ============================================================
-    // ✅ 4. SHOW CREATE TENANT FORM
-    // ============================================================
-    @GetMapping("/tenants/create")
-    public String showCreateTenantForm(Model model) {
-        // This is also handled by the dashboard page.
-        return "redirect:/superadmin/dashboard";
-    }
-
-    // ============================================================
-    // ✅ 5. CREATE TENANT (Form Submission)
+    // ✅ 3. CREATE TENANT (Form Submission)
     // ============================================================
     @PostMapping("/create-tenant")
     public String createTenant(@ModelAttribute CreateTenantRequest request,
                                Model model,
                                RedirectAttributes redirectAttributes) {
+        logger.info("Creating tenant with subdomain: {}", request.getSubdomain());
+
         try {
             tenantService.createTenant(
                     request.getOrgName(),
@@ -122,9 +135,11 @@ public class SuperAdminController {
                     request.getAdminPassword(),
                     request.getSubdomain()
             );
-            redirectAttributes.addFlashAttribute("successMessage", "Tenant created successfully!");
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Tenant created successfully! Subdomain: " + request.getSubdomain() + ".localhost");
             return "redirect:/superadmin/dashboard";
         } catch (Exception e) {
+            logger.error("Failed to create tenant: {}", e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
             redirectAttributes.addFlashAttribute("createTenantRequest", request);
             return "redirect:/superadmin/dashboard";
@@ -132,11 +147,10 @@ public class SuperAdminController {
     }
 
     // ============================================================
-    // ✅ 6. DELETE TENANT (Optional)
+    // ✅ 4. DELETE TENANT (Optional - Implement Later)
     // ============================================================
     @PostMapping("/tenants/{id}/delete")
     public String deleteTenant(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        // Implement deletion if needed
         redirectAttributes.addFlashAttribute("successMessage", "Tenant deletion not yet implemented.");
         return "redirect:/superadmin/dashboard";
     }

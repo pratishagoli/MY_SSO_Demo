@@ -8,6 +8,7 @@ import com.example.ssoapp.service.SsoConfigService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import com.example.ssoapp.config.TenantContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -35,11 +36,6 @@ public class WebController {
     private SsoConfigService ssoConfigService;
     // ----------------------------
 
-    @GetMapping("/")
-    public String rootPage() {
-        return "redirect:/login";
-    }
-
     @GetMapping("/login")
     public String loginPage(HttpServletRequest request, Model model) {
         CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
@@ -47,13 +43,26 @@ public class WebController {
             model.addAttribute("_csrf", token);
         }
 
-        model.addAttribute("jwtEnabled", ssoConfigService.isSsoEnabled("JWT"));
-        model.addAttribute("oidcEnabled", ssoConfigService.isSsoEnabled("OIDC"));
-        model.addAttribute("samlEnabled", ssoConfigService.isSsoEnabled("SAML"));
+        // 🚀 Check if this is a tenant subdomain or SuperAdmin
+        String tenantId = TenantContext.getCurrentTenantId();
+        boolean isTenantLogin = (tenantId != null && !tenantId.isEmpty());
+
+        model.addAttribute("isTenantLogin", isTenantLogin);
+
+        if (isTenantLogin) {
+            // Tenant-specific login - show SSO buttons if enabled
+            model.addAttribute("jwtEnabled", ssoConfigService.isSsoEnabled("JWT"));
+            model.addAttribute("oidcEnabled", ssoConfigService.isSsoEnabled("OIDC"));
+            model.addAttribute("samlEnabled", ssoConfigService.isSsoEnabled("SAML"));
+        } else {
+            // SuperAdmin login - NO SSO buttons
+            model.addAttribute("jwtEnabled", false);
+            model.addAttribute("oidcEnabled", false);
+            model.addAttribute("samlEnabled", false);
+        }
 
         return "login";
     }
-
     @GetMapping("/signup")
     public String signupPage() {
         return "signup";

@@ -1,16 +1,14 @@
 package com.example.ssoapp.service;
 
+import com.example.ssoapp.config.TenantContext;
 import com.example.ssoapp.model.SsoConfig;
 import com.example.ssoapp.repository.SsoConfigRepository;
-import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.cache.annotation.CacheEvict;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,182 +19,137 @@ public class SsoConfigService {
 
     @Autowired
     private SsoConfigRepository ssoConfigRepository;
-    private static final String DEFAULT_SP_ENTITY_ID = "http://localhost:8080/saml2/service-provider-metadata/miniorange-saml";
 
-    // Hardcoded metadata URL to ensure it's set on initialization
-    private static final String DEFAULT_SAML_METADATA_URL = "https://pratisha.xecurify.com/moas/metadata/saml/379428/432956";
-
-    @Cacheable("ssoConfigs")
-    public List<SsoConfig> getAllSsoConfigs() {
-        return ssoConfigRepository.findAll();
-    }
-
+    /**
+     * Get SSO config for current tenant (or global if SuperAdmin)
+     */
     public SsoConfig getSsoConfigByType(String ssoType) {
-        return ssoConfigRepository.findBySsoType(ssoType)
-                .orElseGet(() -> {
-                    // Create default if not exists
-                    logger.warn("No SsoConfig found for type '{}', creating a new default entry.", ssoType);
-                    SsoConfig config = new SsoConfig(ssoType, true);
+        Long tenantId = TenantContext.getTenantIdAsLong();
 
-                    // FIX: If this is the SAML config, set the default URL
-                    if ("SAML".equals(ssoType)) {
-                        config.setConfigUrl(DEFAULT_SAML_METADATA_URL);
-                        config.setSpEntityId(DEFAULT_SP_ENTITY_ID);
-                        logger.info("Populating default SAML config with metadata URL: {}", DEFAULT_SAML_METADATA_URL);
-                    }
-
-                    return ssoConfigRepository.save(config);
-                });
-    }
-
-    @Transactional
-    @CacheEvict(value = "ssoConfigs", allEntries = true)
-    public SsoConfig updateSsoConfig(String ssoType, Boolean enabled) {
-        Optional<SsoConfig> existing = ssoConfigRepository.findBySsoType(ssoType);
-
-        if (existing.isPresent()) {
-            SsoConfig config = existing.get();
-            config.setEnabled(enabled);
-            logger.info("Updated SSO config for {}: enabled={}", ssoType, enabled);
-            return ssoConfigRepository.save(config);
+        if (tenantId != null) {
+            // Tenant-specific lookup
+            logger.debug("Looking up {} SSO config for tenant: {}", ssoType, tenantId);
+            return ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType)
+                    .orElse(null);
         } else {
-            SsoConfig config = new SsoConfig(ssoType, enabled);
-            logger.info("Created new SSO config for {}: enabled={}", ssoType, enabled);
-            return ssoConfigRepository.save(config);
+            // SuperAdmin context - no SSO configs
+            logger.debug("SuperAdmin context - no SSO configs available");
+            return null;
         }
     }
 
+    /**
+     * Check if SSO is enabled for current tenant
+     */
+    public boolean isSsoEnabled(String ssoType) {
+        SsoConfig config = getSsoConfigByType(ssoType);
+        return config != null && config.getEnabled();
+    }
+
+    /**
+     * Get all SSO configs for current tenant
+     */
+    public List<SsoConfig> getAllSsoConfigs() {
+        Long tenantId = TenantContext.getTenantIdAsLong();
+
+        if (tenantId != null) {
+            return ssoConfigRepository.findByTenantId(tenantId);
+        } else {
+            // SuperAdmin - return empty list
+            return List.of();
+        }
+    }
+
+    /**
+     * Initialize default SSO configs for a new tenant
+     */
     @Transactional
-    @CacheEvict(value = "ssoConfigs", allEntries = true)
-    public void initializeDefaultConfigs() {
-        // Initialize default configurations if they don't exist
+    public void initializeDefaultConfigsForTenant(Long tenantId) {
+        logger.info("Initializing default SSO configs for tenant: {}", tenantId);
+
         String[] ssoTypes = {"JWT", "OIDC", "SAML"};
         for (String ssoType : ssoTypes) {
-            if (ssoConfigRepository.findBySsoType(ssoType).isEmpty()) {
-                SsoConfig config = new SsoConfig(ssoType, true);
+            Optional<SsoConfig> existing = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
 
-                // FIX: If this is the SAML config, set the default URL
-                if ("SAML".equals(ssoType)) {
-                    config.setConfigUrl(DEFAULT_SAML_METADATA_URL);
-                    config.setSpEntityId(DEFAULT_SP_ENTITY_ID);
-                    logger.info("Initializing default SAML config with metadata URL: {}", DEFAULT_SAML_METADATA_URL);
-                } else {
-                    logger.info("Initialized default SSO config for {}", ssoType);
-                }
+            if (existing.isEmpty()) {
+                SsoConfig config = new SsoConfig(tenantId, ssoType, false); // Disabled by default
                 ssoConfigRepository.save(config);
+                logger.info("Created default {} config for tenant {}", ssoType, tenantId);
             }
         }
     }
 
-    public boolean isSsoEnabled(String ssoType) {
-        // Use findBySsoType which is cached friendly vs getSsoConfigByType which can write
-        Optional<SsoConfig> config = ssoConfigRepository.findBySsoType(ssoType);
-        return config.map(SsoConfig::getEnabled).orElse(true); // Default to true if not found
-    }
-
+    /**
+     * Update SSO config for current tenant
+     */
     @Transactional
-    public void storeTestResult(String ssoType, String assertion, String status) {
-        Optional<SsoConfig> configOpt = ssoConfigRepository.findBySsoType(ssoType);
-        if (configOpt.isPresent()) {
-            SsoConfig config = configOpt.get();
-            config.setLastAssertion(assertion);
-            config.setLastTestStatus(status);
-            ssoConfigRepository.save(config);
-            logger.info("Stored test result for {}: status={}", ssoType, status);
+    public SsoConfig updateSsoConfig(String ssoType, Boolean enabled) {
+        Long tenantId = TenantContext.getTenantIdAsLong();
+
+        if (tenantId == null) {
+            throw new RuntimeException("Cannot update SSO config in SuperAdmin context");
+        }
+
+        Optional<SsoConfig> existing = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
+
+        if (existing.isPresent()) {
+            SsoConfig config = existing.get();
+            config.setEnabled(enabled);
+            logger.info("Updated SSO config for tenant {}: {} enabled={}", tenantId, ssoType, enabled);
+            return ssoConfigRepository.save(config);
+        } else {
+            SsoConfig config = new SsoConfig(tenantId, ssoType, enabled);
+            logger.info("Created new SSO config for tenant {}: {} enabled={}", tenantId, ssoType, enabled);
+            return ssoConfigRepository.save(config);
         }
     }
 
     /**
-     * Updates the configuration details for a specific SSO type.
-     * This is how you can set the metadataUrl, certificate, etc., from your admin UI.
-     * @param ssoType The type of SSO (e.g., "SAML")
-     * @param details A map of configuration keys to update (e.g., "configUrl" -> "http://...")
+     * Update detailed SSO config
      */
     @Transactional
-    @CacheEvict(value = "ssoConfigs", allEntries = true)
     public SsoConfig updateSsoConfigDetails(String ssoType, Map<String, String> details) {
-        SsoConfig config = ssoConfigRepository.findBySsoType(ssoType)
-                .orElse(new SsoConfig(ssoType, true)); // Create if not exists
+        Long tenantId = TenantContext.getTenantIdAsLong();
 
-        logger.info("Updating configuration details for {}", ssoType);
-
-        // --- COMMON/JWT FIELDS ---
-        if (details.containsKey("configUrl")) {
-            config.setConfigUrl(details.get("configUrl"));
-        }
-        if (details.containsKey("verificationCertificate")) {
-            config.setVerificationCertificate(details.get("verificationCertificate"));
-        }
-        if (details.containsKey("signingKey")) {
-            config.setSigningKey(details.get("signingKey"));
+        if (tenantId == null) {
+            throw new RuntimeException("Cannot update SSO config in SuperAdmin context");
         }
 
-        // --- NEW OIDC/JWT FIELDS ADDED HERE ---
-        if (details.containsKey("clientId")) {
-            config.setClientId(details.get("clientId"));
-        }
-        if (details.containsKey("clientSecret")) {
-            config.setClientSecret(details.get("clientSecret"));
-        }
-        if (details.containsKey("issuerUri")) {
-            config.setIssuerUri(details.get("issuerUri"));
-        }
-        // --- END NEW OIDC/JWT FIELDS ---
+        SsoConfig config = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType)
+                .orElse(new SsoConfig(tenantId, ssoType, true));
 
-        // --- 👇 THIS IS THE MISSING LOGIC ---
-        // --- SAML FIELDS ---
+        logger.info("Updating configuration details for tenant {} - {}", tenantId, ssoType);
 
-        // This is your application's (SP) Entity ID
-        if (details.containsKey("entityId")) {
-            config.setSpEntityId(details.get("entityId"));
-        }
+        // Update fields (same as before)
+        if (details.containsKey("configUrl")) config.setConfigUrl(details.get("configUrl"));
+        if (details.containsKey("verificationCertificate")) config.setVerificationCertificate(details.get("verificationCertificate"));
+        if (details.containsKey("signingKey")) config.setSigningKey(details.get("signingKey"));
+        if (details.containsKey("clientId")) config.setClientId(details.get("clientId"));
+        if (details.containsKey("clientSecret")) config.setClientSecret(details.get("clientSecret"));
+        if (details.containsKey("issuerUri")) config.setIssuerUri(details.get("issuerUri"));
+        if (details.containsKey("entityId")) config.setSpEntityId(details.get("entityId"));
+        if (details.containsKey("idpEntityId")) config.setIdpEntityId(details.get("idpEntityId"));
+        if (details.containsKey("ssoServiceUrl")) config.setIdpSsoUrl(details.get("ssoServiceUrl"));
+        if (details.containsKey("idpCertificateContent")) config.setIdpCertificateContent(details.get("idpCertificateContent"));
 
-        // This is the IdP's Entity ID (from miniOrange)
-        if (details.containsKey("idpEntityId")) {
-            config.setIdpEntityId(details.get("idpEntityId"));
-        }
-
-        // This is the IdP's Login URL (from miniOrange)
-        if (details.containsKey("ssoServiceUrl")) {
-            config.setIdpSsoUrl(details.get("ssoServiceUrl"));
-        }
-
-        // This is the IdP's X.509 Certificate (from miniOrange)
-        if (details.containsKey("idpCertificateContent")) {
-            config.setIdpCertificateContent(details.get("idpCertificateContent"));
-        }
-        // --- 👆 END OF FIX ---
-
-        logger.info("Saving updated config for {} to database", ssoType);
         return ssoConfigRepository.save(config);
     }
 
     /**
-     * Retrieves a single configuration value for a specific SSO type.
-     * @param ssoType The type of SSO (e.g., "SAML")
-     * @param key The configuration key (e.g., "configUrl")
-     * @return The configuration value, or null if not found.
+     * Store test result
      */
-    @Cacheable(value = "ssoConfigValue", key = "#ssoType + '-' + #key")
-    public String getConfigValue(String ssoType, String key) {
-        SsoConfig config = getSsoConfigByType(ssoType);
-
-        switch (key) {
-            case "configUrl":
-                return config.getConfigUrl();
-            case "verificationCertificate":
-                return config.getVerificationCertificate();
-            case "signingKey":
-                return config.getSigningKey();
-            case "clientId":
-                return config.getClientId();
-            case "clientSecret":
-                return config.getClientSecret();
-            case "issuerUri":
-                return config.getIssuerUri();
-            default:
-                logger.warn("Unknown config key '{}' requested for type '{}'", key, ssoType);
-                return null;
+    @Transactional
+    public void storeTestResult(String ssoType, String assertion, String status) {
+        Long tenantId = TenantContext.getTenantIdAsLong();
+        if (tenantId != null) {
+            Optional<SsoConfig> configOpt = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
+            if (configOpt.isPresent()) {
+                SsoConfig config = configOpt.get();
+                config.setLastAssertion(assertion);
+                config.setLastTestStatus(status);
+                ssoConfigRepository.save(config);
+                logger.info("Stored test result for tenant {} - {}: status={}", tenantId, ssoType, status);
+            }
         }
     }
 }
