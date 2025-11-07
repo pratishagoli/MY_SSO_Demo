@@ -1,51 +1,35 @@
 package com.example.ssoapp.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-
-/**
- * DTO for the SuperAdmin to create a new tenant and its Tenant Admin user.
- */
 public class CreateTenantRequest {
 
-    @NotBlank
-    private String name;
+    private String orgName;
+    private String adminEmail;
+    private String adminPassword;
+    private String subdomain;
 
-    @NotBlank
-    @Email
-    private String email; // The Tenant Admin's email
-
-    @NotBlank
-    private String password; // The Tenant Admin's password
-
-    @NotBlank
-    private String subdomain; // The tenant's identifier (e.g., 'acme')
-
-    // Getters and Setters (omitted for brevity, but needed in real code)
-    // You should use Lombok or write them manually. I'll write them here for completeness.
-
-    public String getName() {
-        return name;
+    // Getters and Setters
+    public String getOrgName() {
+        return orgName;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setOrgName(String orgName) {
+        this.orgName = orgName;
     }
 
-    public String getEmail() {
-        return email;
+    public String getAdminEmail() {
+        return adminEmail;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setAdminEmail(String adminEmail) {
+        this.adminEmail = adminEmail;
     }
 
-    public String getPassword() {
-        return password;
+    public String getAdminPassword() {
+        return adminPassword;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setAdminPassword(String adminPassword) {
+        this.adminPassword = adminPassword;
     }
 
     public String getSubdomain() {

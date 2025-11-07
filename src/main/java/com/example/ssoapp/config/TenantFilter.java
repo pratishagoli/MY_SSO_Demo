@@ -14,11 +14,13 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Servlet filter that resolves tenant from subdomain and sets TenantContext.
- * Runs BEFORE Spring Security filter chain.
+ * ✅ TenantFilter
+ * Extracts tenant information (subdomain → tenant_id) per request
+ * and sets it in TenantContext for multi-tenant isolation.
+ * Clears context after each request automatically.
  */
 @Component
-@Order(1) // Run before security filters
+@Order(1) // Ensures it runs before Spring Security filters
 public class TenantFilter implements Filter {
 
     private static final Logger logger = LoggerFactory.getLogger(TenantFilter.class);
@@ -33,60 +35,59 @@ public class TenantFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         String serverName = httpRequest.getServerName();
 
-        logger.debug("Request to: {}", serverName);
+        logger.debug("🌍 Incoming request from host: {}", serverName);
 
         try {
             // Extract subdomain (e.g., "tenant1" from "tenant1.localhost")
             String subdomain = extractSubdomain(serverName);
 
             if (subdomain != null && !subdomain.isEmpty()) {
-                // Tenant subdomain detected
-                // Assuming Tenant model uses the subdomain itself as the primary ID/key for simplicity
-                // but we check the database for validation and activation status.
+                // ✅ Tenant subdomain detected → lookup in DB
                 Optional<Tenant> tenant = tenantRepository.findBySubdomain(subdomain);
 
-                if (tenant.isPresent() && tenant.get().getActive()) {
-                    // 🚀 FIX: Convert Long ID (from DB) to String for TenantContext
-                    String tenantIdString = String.valueOf(tenant.get().getId());
+                if (tenant.isPresent()) {
+                    Tenant currentTenant = tenant.get();
+                    String tenantIdString = String.valueOf(currentTenant.getId()); // ✅ Convert Long → String
+                    TenantContext.setTenantId(tenantIdString);
 
-                    TenantContext.setTenantId(tenantIdString); // Set String ID
-                    logger.info("Tenant context set: {} (ID: {})", subdomain, tenantIdString);
+                    logger.info("🏢 Tenant context set: subdomain='{}', tenantId={}", subdomain, tenantIdString);
                 } else {
-                    logger.warn("Invalid or inactive tenant subdomain: {}", subdomain);
-                    // Let request proceed; Spring Security will handle unauthorized access
+                    logger.warn("⚠️ Unknown tenant subdomain: '{}'", subdomain);
+                    // Still continue — user will hit unauthorized later
                 }
             } else {
-                // No subdomain or "localhost" → SuperAdmin context
+                // ✅ No subdomain (e.g. localhost:8080) → SuperAdmin context
                 TenantContext.clear();
-                logger.debug("SuperAdmin context (no tenant)");
+                logger.debug("🧭 SuperAdmin context detected (no subdomain)");
             }
 
+            // Proceed with request
             chain.doFilter(request, response);
 
         } finally {
-            // Always clear after request
+            // ✅ Always clear TenantContext to prevent thread leakage
             TenantContext.clear();
         }
     }
 
     /**
-     * Extract subdomain from hostname.
+     * Utility method to extract subdomain from host name.
      * Examples:
-     * - "tenant1.localhost" → "tenant1"
-     * - "localhost" → null
-     * - "tenant1.example.com" → "tenant1"
+     * - tenant1.localhost → tenant1
+     * - localhost → null
+     * - tenant1.example.com → tenant1
      */
     private String extractSubdomain(String serverName) {
-        if (serverName == null || serverName.equals("localhost") || serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-            return null; // No subdomain
+        if (serverName == null ||
+                serverName.equalsIgnoreCase("localhost") ||
+                serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+            return null; // No subdomain for localhost or IP
         }
 
-        // Split by dot and take first part
         String[] parts = serverName.split("\\.");
-        if (parts.length > 2) {
-            return parts[0]; // e.g., "tenant1" from "tenant1.localhost"
+        if (parts.length >= 2) {
+            return parts[0]; // Take first part as subdomain
         }
-
         return null;
     }
 }
