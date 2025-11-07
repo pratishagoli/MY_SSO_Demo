@@ -311,6 +311,41 @@
             font-family: monospace;
             box-sizing: border-box;
         }
+        /* Style for the Save button (like Edit/Green) */
+        .save-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem; /* Slightly larger padding for importance */
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            margin-right: 10px; /* Spacing between Save and Cancel */
+        }
+
+        .save-btn:hover {
+            background-color: #218838;
+        }
+
+        /* Style for the Cancel button (neutral, like Test/Blue/Teal but slightly muted or just white) */
+        /* To match the 'Test' button color scheme: */
+        .cancel-btn {
+            background-color: #17a2b8; /* Matching the .test-btn color */
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .cancel-btn:hover {
+            background-color: #138496;
+        }
 
         .config-input:focus {
             outline: none;
@@ -489,80 +524,131 @@
     }
 
     async function showEditModal(button) {
-        const ssoType = button.getAttribute('data-sso-type');
-        const modal = document.getElementById('editModal');
-        const modalTitle = document.getElementById('editModalTitle');
-        const modalContent = document.getElementById('editModalContent');
+    const ssoType = button.getAttribute('data-sso-type');
+    const modal = document.getElementById('editModal');
+    const modalTitle = document.getElementById('editModalTitle');
+    const modalContent = document.getElementById('editModalContent');
 
-        modalTitle.textContent = `${ssoType} Configuration`;
+    modalTitle.textContent = `${ssoType} Configuration`;
 
-        try {
-            const response = await fetch(`/admin/sso/config/${ssoType}/details`, {
-                method: 'GET',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    [csrfParameterName]: csrfToken
-                }
-            });
-
-            if (response.ok) {
-                const config = await response.json();
-                let html = '';
-                
-                // Store config for saving
-                window.currentSsoConfig = config;
-                window.currentSsoType = ssoType;
-                
-                // Define which fields are editable vs read-only
-                const editableFields = {
-                    'JWT': ['clientId', 'issuer', 'redirectUri', 'loginUrl'],
-                    'OIDC': ['clientId', 'clientSecret', 'scope', 'issuerUri'],
-                    'SAML': [
-                        'entityId',              // Your SP Entity ID
-                        'idpEntityId',           // The IdP's Issuer ID
-                        'ssoServiceUrl',         // The SAML Login URL
-                        'idpCertificateContent', // The X.509 Certificate
-                        'metadataUrl'            // The IdP Metadata URL (for your reference)
-                    ]
-                };
-                
-                const editable = editableFields[ssoType] || [];
-                
-                for (const [key, value] of Object.entries(config)) {
-                    // Skip status and ssoType in display
-                    if (key === 'status' || key === 'ssoType') continue;
-
-                    const isEditable = editable.includes(key);
-                    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-
-                    html += `<div class="config-item"><span class="config-label">${label}:</span>`;
-
-                    if (isEditable) {
-                        // THIS IS THE FIX:
-                        if (key === 'idpCertificateContent') {
-                            // Use a textarea for the certificate
-                            html += `<textarea class="config-input" data-field="${key}" rows="7" placeholder="Paste certificate here (including -----BEGIN... and -----END...)">${value || ''}</textarea>`;
-                        } else {
-                            // Use a normal input for all other fields
-                            html += `<input type="text" class="config-input" data-field="${key}" value="${value || ''}" placeholder="Enter ${label}">`;
-                        }
-                    } else {
-                        // This is for read-only fields
-                        html += `<div class="config-value" style="padding: 8px; background: #f5f5f5; border-radius: 4px;">${value || 'N/A'}</div>`;
-                    }
-                    html += `</div>`;
-                }
-                
-                modalContent.innerHTML = html;
-                modal.style.display = 'flex';
-            } else {
-                showMessage('Failed to load configuration details', false);
+    try {
+        const response = await fetch(`/admin/sso/config/${ssoType}/details`, {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                [csrfParameterName]: csrfToken
             }
-        } catch (error) {
-            console.error('Error loading config:', error);
-            showMessage('An error occurred while loading configuration', false);
+        });
+
+        if (response.ok) {
+            const config = await response.json();
+            let html = '';
+
+            // Store config for saving
+            window.currentSsoConfig = config;
+            window.currentSsoType = ssoType;
+
+            // Define which fields are editable vs read-only
+            const editableFields = {
+                'JWT': ['clientId', 'issuer', 'redirectUri', 'loginUrl'],
+                'OIDC': ['clientId', 'clientSecret', 'scope', 'issuerUri','redirectUri'],
+                'SAML': [
+                    'entityId',              // Your SP Entity ID
+                    'idpEntityId',           // The IdP's Issuer ID
+                    'ssoServiceUrl',         // The SAML Login URL
+                    'idpCertificateContent', // The X.509 Certificate
+                    'metadataUrl',            // The IdP Metadata URL (for your reference)
+                    'acsUrl'
+                ]
+            };
+
+            const editable = editableFields[ssoType] || [];
+
+            // Define the order of fields for better presentation
+            let displayKeys = Object.keys(config).filter(key => key !== 'status' && key !== 'ssoType');
+
+            // Special ordering to put the Protocol/Callback field first
+            if (ssoType === 'JWT' || ssoType === 'OIDC') {
+                // Move redirectUri to the top, right after Protocol
+                let index = displayKeys.indexOf('redirectUri');
+                if (index > -1) {
+                    displayKeys.splice(index, 1);
+                    displayKeys.unshift('redirectUri');
+                }
+            } else if (ssoType === 'SAML') {
+                // You can add SAML specific ordering here if needed (e.g., acsUrl, entityId first)
+                // Current approach iterates over config keys as they appear + instruction logic.
+            }
+
+            // --- THIS IS THE CORRECTED SINGLE LOOP ---
+            for (const key of displayKeys) {
+                const value = config[key];
+                const isEditable = editable.includes(key);
+                const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
+                let instructionMessage = '';
+
+                // JWT Instructions
+                if (ssoType === 'JWT' && key === 'redirectUri') {
+                    instructionMessage = `
+                        <strong>Important:</strong> Copy this **Redirect Uri** and paste it into the **Redirect URL/ACS URL** field in your MiniOrange application setup.
+                    `;
+                // OIDC Instructions
+                } else if (ssoType === 'OIDC' && key === 'redirectUri') {
+                     instructionMessage = `
+                        <strong>Important:</strong> Copy this **Redirect Uri** and paste it into the **Redirect URL** field in your MiniOrange OIDC application setup.
+                    `;
+                // SAML Instructions
+                } else if (ssoType === 'SAML') {
+                    if (key === 'entityId') {
+                        instructionMessage = `
+                            <strong>Action Required:</strong> Copy this **Entity ID** and paste it into the **SP Entity ID or Issuer** field in MiniOrange.
+                        `;
+                    } else if (key === 'acsUrl') {
+                        instructionMessage = `
+                            <strong>Action Required:</strong> Copy this **ACS URL** and paste it into the **ACS URL** field in MiniOrange.
+                        `;
+                    }
+                }
+
+                // Display instruction message if present
+                if (instructionMessage) {
+                    html += `
+                        <div style="margin-bottom: 15px; padding: 10px; background-color: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px; font-size: 0.9rem; color: #1890ff;">
+                            ${instructionMessage}
+                        </div>
+                    `;
+                }
+
+                // Render the config item
+                html += `<div class="config-item"><span class="config-label">${label}:</span>`;
+
+                if (isEditable) {
+                    if (key === 'idpCertificateContent') {
+                        // Use a textarea for the certificate
+                        html += `<textarea class="config-input" data-field="${key}" rows="7" placeholder="Paste certificate here (including -----BEGIN... and -----END...)">${value || ''}</textarea>`;
+                    } else {
+                        // Use a normal input for all other fields
+                        html += `<input type="text" class="config-input" data-field="${key}" value="${value || ''}" placeholder="Enter ${label}">`;
+                    }
+                } else {
+                    // This is for read-only fields
+                    html += `<div class="config-value" style="padding: 8px; background: #f5f5f5; border-radius: 4px;">${value || 'N/A'}</div>`;
+                }
+                html += `</div>`;
+            }
+            // --- END OF CORRECTED SINGLE LOOP ---
+
+            modalContent.innerHTML = html;
+            modal.style.display = 'flex';
+        } else {
+            showMessage('Failed to load configuration details', false);
         }
+    } catch (error) {
+        console.error('Error loading config:', error);
+        showMessage('An error occurred while loading configuration', false);
     }
+}
 
     function closeEditModal() {
         document.getElementById('editModal').style.display = 'none';
@@ -570,7 +656,7 @@
 
     function testSso(button) {
         const ssoType = button.getAttribute('data-sso-type').toLowerCase();
-        
+
         // Redirect to test endpoint which will initiate SSO flow
         window.location.href = `/admin/sso/test/${ssoType}`;
     }

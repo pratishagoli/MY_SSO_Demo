@@ -187,6 +187,7 @@
 
         .modal-content input[type="text"],
         .modal-content input[type="email"],
+        .modal-content input[type="password"],
         .modal-content select {
             width: calc(100% - 20px);
             padding: 10px;
@@ -333,6 +334,7 @@
 
         <div class="admin-header">
             <h1 class="welcome-message">Admin Dashboard: User Management</h1>
+            <button class="action-btn-blue" onclick="openCreateUserModal()">Add Users</button>
         </div>
 
         <!-- Native Users Table -->
@@ -400,6 +402,29 @@
         </table>
     </div>
 </main>
+
+<div id="createUserModal" class="modal">
+    <div class="modal-content">
+        <h2>Create User</h2> <input type="hidden" id="createUserType" value="native"> <label for="createUsername">Fullname/Username</label>
+        <input type="text" id="createUsername" placeholder="Username">
+
+        <label for="createUserEmail">Email</label>
+        <input type="email" id="createUserEmail" placeholder="Email">
+
+        <label for="createPassword">Password</label>
+        <input type="password" id="createPassword" placeholder="Password">
+
+        <label for="createUserRole">User Role</label>
+        <select id="createUserRole">
+            <option value="USER">USER</option>
+            <option value="ADMIN">ADMIN</option>
+        </select>
+
+        <div class="modal-buttons">
+            <button class="save-btn" onclick="createUser()">Create</button> <button class="cancel-btn" onclick="closeCreateUserModal()">Cancel</button>
+        </div>
+    </div>
+</div>
 
 <div id="editUserModal" class="modal">
     <div class="modal-content">
@@ -600,6 +625,79 @@
             alert('An error occurred while deleting user.');
         }
     }
+    // --- NEW: Create User Modal Functions (Add these after the Edit User functions) ---
+const createUserModal = document.getElementById('createUserModal');
+const createUsername = document.getElementById('createUsername');
+const createUserEmail = document.getElementById('createUserEmail');
+const createPassword = document.getElementById('createPassword');
+const createUserRole = document.getElementById('createUserRole');
+const createUserType = document.getElementById('createUserType');
+
+function openCreateUserModal() {
+    // Clear fields on open
+    createUsername.value = '';
+    createUserEmail.value = '';
+    createPassword.value = '';
+    createUserRole.value = 'USER'; // Default role
+    createUserType.value = 'native'; // Default type
+    createUserModal.style.display = 'flex';
+}
+
+function closeCreateUserModal() {
+    createUserModal.style.display = 'none';
+}
+
+async function createUser() {
+    const username = createUsername.value.trim();
+    const email = createUserEmail.value.trim();
+    const password = createPassword.value;
+    const role = createUserRole.value;
+
+    // Basic client-side validation
+    if (!username || !email || !password || !role) {
+        alert('Please fill in all fields (Username, Email, Password, Role).');
+        return;
+    }
+
+    // Simple email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        alert('Please enter a valid email address.');
+        return;
+    }
+
+
+    try {
+        const response = await fetch(`/api/admin/users`, { // New POST endpoint
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                [csrfParameterName]: csrfToken
+            },
+            body: JSON.stringify({
+                username: username,
+                email: email,
+                password: password, // Send password to the server
+                role: role,
+                // provider and providerId will be null/defaulted on the backend for native users
+            })
+        });
+
+        if (response.ok) {
+            alert('User created successfully!');
+            closeCreateUserModal();
+            // Refresh the page to show the new user
+            window.location.reload();
+        } else {
+            const errorText = await response.text();
+            alert('Failed to create user: ' + errorText);
+        }
+    } catch (error) {
+        console.error('Error creating user:', error);
+        alert('An error occurred while creating user.');
+    }
+}
 </script>
 
 </body>

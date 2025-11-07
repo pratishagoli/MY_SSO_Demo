@@ -1,11 +1,13 @@
 package com.example.ssoapp.controller;
 
+import com.example.ssoapp.dto.CreateUserRequest;
+import com.example.ssoapp.model.AuthProvider; // Ensure this import is correct
 import com.example.ssoapp.model.User;
 import com.example.ssoapp.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder; // *** NEW IMPORT ***
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -21,6 +23,10 @@ public class AdminController {
 
     @Autowired
     private UserRepository userRepository;
+
+    // *** NEW: PasswordEncoder dependency is required for secure password hashing ***
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     // The PUT request to update a user
     @PutMapping("/{id}")
@@ -91,5 +97,54 @@ public class AdminController {
         userRepository.deleteById(id);
 
         return new ResponseEntity<>("User deleted successfully.", HttpStatus.NO_CONTENT);
+    }
+
+    /**
+     * NEW: POST request to create a native user by an Admin.
+     */
+    @PostMapping
+    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest createUserRequest) {
+        // 1. Basic Validation
+        if (createUserRequest.getEmail() == null || createUserRequest.getEmail().trim().isEmpty() ||
+                createUserRequest.getPassword() == null || createUserRequest.getPassword().trim().isEmpty()) {
+            return new ResponseEntity<>("Email and Password are required.", HttpStatus.BAD_REQUEST);
+        }
+
+        // 2. Check for Email Uniqueness (Requires findByEmail in UserRepository)
+        // If findByEmail returns an Optional<User>, checking .isPresent() is correct.
+        if (userRepository.findByEmail(createUserRequest.getEmail()).isPresent()) {
+            return new ResponseEntity<>("User with this email already exists.", HttpStatus.CONFLICT);
+        }
+
+        // 3. Create and Populate User Model
+        User user = new User();
+
+        // Use username if provided, otherwise default to email
+        String username = createUserRequest.getUsername() != null && !createUserRequest.getUsername().trim().isEmpty()
+                ? createUserRequest.getUsername().trim()
+                : createUserRequest.getEmail();
+
+        user.setUsername(username);
+        user.setEmail(createUserRequest.getEmail().trim());
+
+        // *** CRUCIAL: Securely encode the password before saving ***
+        user.setPassword(passwordEncoder.encode(createUserRequest.getPassword()));
+
+        // Set role (default to USER if not specified or invalid)
+        String role = createUserRequest.getRole();
+        if (role != null && (role.equalsIgnoreCase("USER") || role.equalsIgnoreCase("ADMIN"))) {
+            user.setRole(role.toUpperCase());
+        } else {
+            user.setRole("USER"); // Default to USER
+        }
+
+        // Set provider as LOCAL (Native User)
+        user.setProvider(AuthProvider.LOCAL); // Assumes AuthProvider.LOCAL is defined
+        user.setProviderId(null);
+
+        // 4. Save User
+        userRepository.save(user);
+
+        return new ResponseEntity<>("User created successfully.", HttpStatus.CREATED);
     }
 }
