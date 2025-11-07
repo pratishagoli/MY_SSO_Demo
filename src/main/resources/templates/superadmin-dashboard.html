@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Superadmin Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .logout { float: right; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .tenant-form input, .tenant-form button { padding: 10px; margin: 5px 0; width: calc(100% - 22px); box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        .tenant-form button { background-color: #007bff; color: white; cursor: pointer; width: 100%; }
+        .tenant-form button:hover { background-color: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #e2e2e2; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="logout">
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+
+    <h1>Superadmin Dashboard</h1>
+    <p>Welcome, <strong th:text="${username}">Superadmin User</strong>. You are managing all tenants.</p>
+
+    <div th:if="${successMessage}" class="success" th:text="${successMessage}"></div>
+    <div th:if="${errorMessage}" class="error" th:text="${errorMessage}"></div>
+
+    <h2>Create New Tenant</h2>
+    <form th:action="@{/superadmin/create-tenant}" method="post" class="tenant-form">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+        <input type="text" name="name" placeholder="Tenant Name (e.g., Company A)" required>
+        <input type="email" name="email" placeholder="Tenant Admin Email" required>
+        <input type="password" name="password" placeholder="Tenant Admin Password (min 6 chars)" required>
+        <input type="text" name="subdomain" placeholder="Subdomain (e.g., tenant1)" required>
+        <button type="submit">Create Tenant</button>
+    </form>
+
+    <h2>All Active Tenants</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Tenant ID</th>
+            <th>Admin Email</th>
+            <th>Subdomain</th>
+            <th>Users</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="tenant : ${tenants}">
+            <td th:text="${tenant.tenantId}">tenant1</td>
+            <td th:text="${tenant.email}">admin@tenant1.com</td>
+            <td th:text="${tenant.subdomain}">tenant1.localhost</td>
+            <td><a th:href="@{'/superadmin/users?tenantId=' + ${tenant.tenantId}}">View Users</a></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(tenants)}">
+            <td colspan="4">No tenants found.</td>
+        </tr>
+        </tbody>
+    </table>
+
+</div>
+
+</body>
+</html>

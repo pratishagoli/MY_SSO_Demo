@@ -2,6 +2,7 @@ package com.example.ssoapp.security.saml;
 
 import com.example.ssoapp.model.AuthProvider;
 import com.example.ssoapp.model.User;
+import com.example.ssoapp.model.Role; // 🚀 NEW IMPORT
 import com.example.ssoapp.repository.UserRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,11 +54,11 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
             logger.info("Authentication authorities: {}", authentication.getAuthorities());
             logger.info("Authentication details: {}", authentication.getDetails());
             logger.info("SAML authentication successful. Processing user...");
-            
+
             // Log all request parameters
             logger.info("Request parameters:");
-            request.getParameterMap().forEach((key, values) -> 
-                logger.info("  {} = {}", key, java.util.Arrays.toString(values))
+            request.getParameterMap().forEach((key, values) ->
+                    logger.info("  {} = {}", key, java.util.Arrays.toString(values))
             );
 
             Object principal = authentication.getPrincipal();
@@ -68,11 +69,11 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
             // Extract SAML attributes
             if (principal instanceof Saml2AuthenticatedPrincipal) {
                 Saml2AuthenticatedPrincipal samlPrincipal = (Saml2AuthenticatedPrincipal) principal;
-                
+
                 // Get NameID first (often the email in SAML)
                 nameId = samlPrincipal.getName();
                 logger.info("SAML NameID: {}", nameId);
-                
+
                 // Extract email from SAML attributes - try multiple common attribute names
                 email = samlPrincipal.getFirstAttribute("email");
                 if (email == null || email.trim().isEmpty()) {
@@ -84,7 +85,7 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
                 if (email == null || email.trim().isEmpty()) {
                     email = samlPrincipal.getFirstAttribute("mail");
                 }
-                
+
                 // Extract name/username
                 username = samlPrincipal.getFirstAttribute("name");
                 if (username == null || username.trim().isEmpty()) {
@@ -127,7 +128,7 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
                     response.sendRedirect("/login?error=no_email");
                     return;
                 }
-                
+
                 try {
                     user = registerOrRetrieveUser(email, username, nameId);
                     if (user == null) {
@@ -142,12 +143,15 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
 
                     // Add user role as authority
                     if (user.getRole() != null) {
-                        authorities.add(new SimpleGrantedAuthority(user.getRole()));
+                        // 🚀 FIX 1: Use .name() to get the String representation of the Enum for GrantedAuthority
+                        authorities.add(new SimpleGrantedAuthority(user.getRole().name()));
                     } else {
                         // Ensure default role is set
-                        user.setRole("USER");
+                        // 🚀 FIX 2: Assign the Role Enum object
+                        user.setRole(Role.USER);
                         user = userRepository.save(user);
-                        authorities.add(new SimpleGrantedAuthority("USER"));
+                        // 🚀 FIX 3: Use .name() for SimpleGrantedAuthority
+                        authorities.add(new SimpleGrantedAuthority(Role.USER.name()));
                         logger.info("Set default USER role for user: {}", email);
                     }
 
@@ -160,26 +164,26 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
 
                     // Create new authentication with user details
                     org.springframework.security.authentication.UsernamePasswordAuthenticationToken newAuth =
-                        new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            authorities
-                        );
+                            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    authorities
+                            );
                     newAuth.setDetails(authentication.getDetails());
-                    
+
                     // Update SecurityContext
                     SecurityContext securityContext = SecurityContextHolder.getContext();
                     securityContext.setAuthentication(newAuth);
-                    
+
                     // Save to session
                     HttpSession session = request.getSession(true);
                     session.setAttribute(
-                        HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                        securityContext
+                            HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                            securityContext
                     );
-                    
+
                     logger.info("Authentication context updated and saved for user: {} (ID: {})", email, user.getId());
-                    
+
                 } catch (Exception e) {
                     logger.error("CRITICAL: Failed to register/retrieve user for email: {}", email, e);
                     response.sendRedirect("/login?error=user_creation_failed");
@@ -188,10 +192,10 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
 
                 // Log all available attributes for debugging
                 logger.info("Available SAML attributes:");
-                samlPrincipal.getAttributes().forEach((key, value) -> 
-                    logger.info("  {} = {}", key, value)
+                samlPrincipal.getAttributes().forEach((key, value) ->
+                        logger.info("  {} = {}", key, value)
                 );
-                
+
                 // Check if this is a test flow from session
                 Boolean testMode = (Boolean) request.getSession().getAttribute("sso_test_mode");
                 String testType = (String) request.getSession().getAttribute("sso_test_type");
@@ -199,16 +203,16 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
                     // Store SAML attributes in session for modal popup
                     Map<String, Object> samlAttributes = new HashMap<>();
                     samlAttributes.put("NameID", samlPrincipal.getName());
-                    samlPrincipal.getAttributes().forEach((key, value) -> 
-                        samlAttributes.put(key, value)
+                    samlPrincipal.getAttributes().forEach((key, value) ->
+                            samlAttributes.put(key, value)
                     );
-                    
+
                     // Store test result in session
                     Map<String, Object> testResult = new HashMap<>();
                     testResult.put("testType", "SAML");
                     testResult.put("testStatus", "success");
                     testResult.put("attributes", samlAttributes);
-                    
+
                     // Store assertion in DB for debugging
                     try {
                         String assertionJson = new ObjectMapper().writeValueAsString(samlAttributes);
@@ -217,47 +221,48 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
                     } catch (Exception e) {
                         logger.warn("Failed to prepare SAML assertion for DB: {}", e.getMessage());
                     }
-                    
+
                     request.getSession().setAttribute("sso_test_result", testResult);
                     request.getSession().removeAttribute("sso_test_mode");
                     request.getSession().removeAttribute("sso_test_type");
-                    
+
                     // Restore admin session
                     restoreAdminSession(request);
-                    
+
                     // Redirect back to config page - modal will show result
                     response.sendRedirect("/admin/sso/config?test=success");
                     return;
                 }
-                
+
                 // Ensure user is not null before redirect
                 if (user == null) {
                     logger.error("CRITICAL: User is null after processing. Cannot proceed.");
                     response.sendRedirect("/login?error=authentication_failed");
                     return;
                 }
-                
+
                 // Determine redirect URL based on user role
                 String targetUrl = "/dashboard";
-                if ("ADMIN".equals(user.getRole())) {
+                // 🚀 FIX 4: Use .name() for comparison
+                if (Role.TENANT_ADMIN.name().equals(user.getRole().name()) || Role.SUPERADMIN.name().equals(user.getRole().name())) {
                     targetUrl = "/admindashboard";
                     logger.info("SAML user {} (ID: {}) is ADMIN, redirecting to: {}", email, user.getId(), targetUrl);
                 } else {
                     logger.info("SAML user {} (ID: {}) is USER, redirecting to: {}", email, user.getId(), targetUrl);
                 }
-                
+
                 response.sendRedirect(targetUrl);
                 return;
             } else {
                 logger.error("CRITICAL: Principal is not Saml2AuthenticatedPrincipal!");
                 logger.error("Principal type: {}", principal.getClass().getName());
                 logger.error("Principal toString: {}", principal.toString());
-                
+
                 // Try to extract from authentication object anyway
                 if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
                     logger.warn("Principal is UserDetails, attempting to extract info...");
-                    org.springframework.security.core.userdetails.UserDetails userDetails = 
-                        (org.springframework.security.core.userdetails.UserDetails) principal;
+                    org.springframework.security.core.userdetails.UserDetails userDetails =
+                            (org.springframework.security.core.userdetails.UserDetails) principal;
                     logger.info("UserDetails username: {}", userDetails.getUsername());
                 }
             }
@@ -265,7 +270,7 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
             // Fallback redirect
             logger.warn("Falling back to dashboard redirect - SAML authentication may have failed");
             response.sendRedirect("/dashboard");
-        
+
         } catch (Exception e) {
             logger.error("CRITICAL: Exception in SAML success handler", e);
             logger.error("Exception type: {}", e.getClass().getName());
@@ -274,25 +279,25 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
                 logger.error("Exception cause: {}", e.getCause().getMessage());
             }
             // Redirect to login with error - this will be caught by failure handler
-            response.sendRedirect("/login?error=saml_failed&details=" + 
-                java.net.URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Handler exception", "UTF-8"));
+            response.sendRedirect("/login?error=saml_failed&details=" +
+                    java.net.URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "Handler exception", "UTF-8"));
         }
     }
 
     private void restoreAdminSession(HttpServletRequest request) {
         // Restore admin authentication after test
-        org.springframework.security.core.Authentication adminAuth = 
-            (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
+        org.springframework.security.core.Authentication adminAuth =
+                (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
         if (adminAuth != null) {
             SecurityContext securityContext = SecurityContextHolder.getContext();
             securityContext.setAuthentication(adminAuth);
-            
+
             HttpSession session = request.getSession();
             session.setAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                securityContext
+                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                    securityContext
             );
-            
+
             request.getSession().removeAttribute("admin_test_principal");
             request.getSession().removeAttribute("admin_test_authorities");
             logger.info("Admin session restored after SAML test");
@@ -307,15 +312,17 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
-            logger.info("User already exists - ID: {}, Email: {}, Role: {}", user.getId(), user.getEmail(), user.getRole());
-            
-            // Ensure role is set if missing
-            if (user.getRole() == null || user.getRole().trim().isEmpty()) {
-                user.setRole("USER");
+            // 🚀 FIX 5: Use .name() to get the String for logging
+            logger.info("User already exists - ID: {}, Email: {}, Role: {}", user.getId(), user.getEmail(), user.getRole().name());
+
+            // Ensure role is set if missing (or use the default Role.USER if it's null)
+            if (user.getRole() == null) {
+                // 🚀 FIX 6: Assign the Role Enum object
+                user.setRole(Role.USER);
                 user = userRepository.saveAndFlush(user);
                 logger.info("Updated user role to USER for existing user: {}", email);
             }
-            
+
             return user;
         }
 
@@ -323,7 +330,7 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
 
         User newUser = new User();
         newUser.setEmail(email.trim());
-        
+
         // Ensure username is set
         if (username == null || username.trim().isEmpty()) {
             if (email != null && email.contains("@")) {
@@ -336,20 +343,23 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
         newUser.setProviderId(providerId);
         newUser.setProvider(AuthProvider.MINIORANGE);
         newUser.setPassword(null); // SSO users don't have passwords
-        newUser.setRole("USER"); // Default role - MUST be set
+
+        // 🚀 FIX 7: Assign the Role Enum object
+        newUser.setRole(Role.USER); // Default role - MUST be set
 
         try {
             User saved = userRepository.saveAndFlush(newUser);
-            logger.info("SUCCESS - User saved with ID: {}, Email: {}, Username: {}, Role: {}", 
-                    saved.getId(), saved.getEmail(), saved.getUsername(), saved.getRole());
-            
+            // 🚀 FIX 8: Use .name() to get the String for logging
+            logger.info("SUCCESS - User saved with ID: {}, Email: {}, Username: {}, Role: {}",
+                    saved.getId(), saved.getEmail(), saved.getUsername(), saved.getRole().name());
+
             // Verify the user was actually saved
             Optional<User> verification = userRepository.findById(saved.getId());
             if (verification.isEmpty()) {
                 logger.error("CRITICAL: User was saved but cannot be retrieved! ID: {}", saved.getId());
                 throw new RuntimeException("User verification failed after save");
             }
-            
+
             return saved;
         } catch (Exception e) {
             logger.error("FAILED to save user! Email: {}, Error: {}", email, e.getMessage(), e);
@@ -357,4 +367,3 @@ public class SamlAuthSuccessHandler implements AuthenticationSuccessHandler {
         }
     }
 }
-

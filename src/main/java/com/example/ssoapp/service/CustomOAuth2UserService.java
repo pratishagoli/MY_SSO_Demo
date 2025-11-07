@@ -5,6 +5,7 @@ import com.example.ssoapp.model.User;
 import com.example.ssoapp.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.example.ssoapp.model.Role;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -73,6 +74,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     public void registerUser(String email, String name, String providerId) {
         logger.info("Checking if user exists: {}", email);
 
+        // This check is now tenant-aware due to the Hibernate Filter setup.
         Optional<User> existingUser = userRepository.findByEmail(email);
 
         if (existingUser.isPresent()) {
@@ -88,9 +90,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         newUser.setProviderId(providerId);
         newUser.setProvider(AuthProvider.MINIORANGE);
         newUser.setPassword(null);
-        newUser.setRole("USER"); // Default role for SSO users
+
+        // 🚀 FIX APPLIED HERE: Pass Role.USER enum object
+        newUser.setRole(Role.USER);
 
         try {
+            // Saving the user. The TenantContext and Hibernate filter handle the tenantId automatically.
             User saved = userRepository.saveAndFlush(newUser);
             logger.info("SUCCESS - User saved with ID: {}", saved.getId());
         } catch (Exception e) {

@@ -2,6 +2,7 @@ package com.example.ssoapp.controller;
 
 import com.example.ssoapp.model.AuthProvider;
 import com.example.ssoapp.model.User;
+import com.example.ssoapp.model.Role; // 🚀 NEW IMPORT
 import com.example.ssoapp.repository.UserRepository;
 import com.example.ssoapp.service.JwtValidationService;
 import jakarta.servlet.http.HttpSession;
@@ -53,10 +54,14 @@ public class JwtController {
             User user = registerOrRetrieveUser(email, username, sub);
 
             // 3. Manually create and set authentication in SecurityContext
+
+            // Get user's authorities based on role (assuming role is set by registerOrRetrieveUser or is pre-existing)
+            String roleName = user.getRole() != null ? user.getRole().name() : Role.USER.name();
+
             UserDetails userDetails = new org.springframework.security.core.userdetails.User(
                     user.getUsername(),
                     "", // No password needed for JWT authentication
-                    new ArrayList<>()
+                    java.util.Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + roleName))
             );
 
             UsernamePasswordAuthenticationToken authentication =
@@ -83,30 +88,30 @@ public class JwtController {
             // Check if this is a test flow from session
             Boolean testMode = (Boolean) request.getSession().getAttribute("sso_test_mode");
             String testType = (String) request.getSession().getAttribute("sso_test_type");
-            
+
             if (Boolean.TRUE.equals(testMode) && "JWT".equals(testType)) {
                 // Store JWT test result in session for modal popup
                 Map<String, Object> testResult = new java.util.HashMap<>();
                 testResult.put("testType", "JWT");
                 testResult.put("testStatus", "success");
                 testResult.put("token", jwt);
-                
+
                 // Decode JWT attributes
                 Map<String, Object> attributes = new java.util.HashMap<>(claims);
                 testResult.put("attributes", attributes);
-                
+
                 request.getSession().setAttribute("sso_test_result", testResult);
                 request.getSession().removeAttribute("sso_test_mode");
                 request.getSession().removeAttribute("sso_test_type");
-                
+
                 // Restore admin session
                 restoreAdminSessionForJwt(request);
-                
+
                 // Redirect back to config page - modal will show result
                 response.sendRedirect("/admin/sso/config?test=success");
                 return;
             }
-            
+
             // 4. Redirect to the protected resource
             response.sendRedirect("/dashboard");
 
@@ -118,11 +123,19 @@ public class JwtController {
     }
 
     private User registerOrRetrieveUser(String email, String username, String providerId) {
+        // Find user, tenant-aware via Hibernate filter
         Optional<User> existingUser = userRepository.findByEmail(email);
 
         if (existingUser.isPresent()) {
-            logger.info("User already exists: {}", email);
-            return existingUser.get();
+            User user = existingUser.get();
+            logger.info("User already exists: {} (Role: {})", email, user.getRole().name());
+
+            // Ensure the user has a role set (in case of legacy/initial data)
+            if (user.getRole() == null) {
+                user.setRole(Role.USER);
+                user = userRepository.saveAndFlush(user);
+            }
+            return user;
         }
 
         logger.info("Creating new user from JWT: {}", email);
@@ -133,26 +146,28 @@ public class JwtController {
         newUser.setProviderId(providerId);
         newUser.setProvider(AuthProvider.MINIORANGE);
         newUser.setPassword(null);
-        newUser.setRole("USER"); // Default role for SSO users
+
+        // 🚀 FIX APPLIED HERE: Use Role Enum object
+        newUser.setRole(Role.USER); // Default role for SSO users
 
         return userRepository.saveAndFlush(newUser);
     }
 
     private void restoreAdminSessionForJwt(HttpServletRequest request) {
         // Restore admin authentication after test
-        org.springframework.security.core.Authentication adminAuth = 
-            (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
+        org.springframework.security.core.Authentication adminAuth =
+                (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
         if (adminAuth != null) {
-            org.springframework.security.core.context.SecurityContext securityContext = 
-                org.springframework.security.core.context.SecurityContextHolder.getContext();
+            org.springframework.security.core.context.SecurityContext securityContext =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext();
             securityContext.setAuthentication(adminAuth);
-            
+
             HttpSession session = request.getSession();
             session.setAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                securityContext
+                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                    securityContext
             );
-            
+
             request.getSession().removeAttribute("admin_test_principal");
             request.getSession().removeAttribute("admin_test_authorities");
             logger.info("Admin session restored after JWT test");

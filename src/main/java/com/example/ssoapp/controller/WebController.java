@@ -2,9 +2,10 @@ package com.example.ssoapp.controller;
 
 import com.example.ssoapp.model.AuthProvider;
 import com.example.ssoapp.model.User;
+import com.example.ssoapp.model.Role; // NEW IMPORT
 import com.example.ssoapp.repository.UserRepository;
 import com.example.ssoapp.service.SsoConfigService;
-import jakarta.servlet.http.HttpServletRequest; // 👈 NEW IMPORT
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,29 +37,26 @@ public class WebController {
 
     @GetMapping("/")
     public String rootPage() {
-        // Redirect root path to login
         return "redirect:/login";
     }
 
     @GetMapping("/login")
-    public String loginPage(HttpServletRequest request, Model model) { // 👈 ADDED REQUEST & MODEL
-        // Explicitly adding CSRF token to model for form rendering (optional but safe)
+    public String loginPage(HttpServletRequest request, Model model) {
         CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (token != null) {
             model.addAttribute("_csrf", token);
         }
-        
-        // Add SSO configuration status to model
+
         model.addAttribute("jwtEnabled", ssoConfigService.isSsoEnabled("JWT"));
         model.addAttribute("oidcEnabled", ssoConfigService.isSsoEnabled("OIDC"));
         model.addAttribute("samlEnabled", ssoConfigService.isSsoEnabled("SAML"));
-        
-        return "login"; // Renders src/main/resources/templates/login.html
+
+        return "login";
     }
 
     @GetMapping("/signup")
     public String signupPage() {
-        return "signup"; // Renders src/main/resources/templates/signup.html
+        return "signup";
     }
 
     @PostMapping("/register-user")
@@ -71,6 +69,9 @@ public class WebController {
             if (username == null || email == null || password == null || password.length() < 6) {
                 return ResponseEntity.badRequest().body("Invalid input fields.");
             }
+            // Note: Since we don't have TenantContext applied to /register-user yet,
+            // this check is currently global. A proper implementation would check
+            // uniqueness within the tenant if a tenant is resolved.
             if (userRepository.findByEmail(email).isPresent()) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already in use.");
             }
@@ -82,7 +83,14 @@ public class WebController {
             newUser.setEmail(email);
             newUser.setPassword(hashedPassword);
             newUser.setProvider(AuthProvider.LOCAL);
-            newUser.setRole("USER"); // Set default role to "USER"
+            newUser.setRole(Role.USER); // Set default role to standard USER
+
+            // ⚠️ TEMPORARY: Since this is a regular user registration,
+            // we are not assigning a tenantId here.
+            // In a real flow, this should happen on a TENANT subdomain.
+            // For now, we rely on the TenantFilter to set the context when accessing this path.
+            // We'll update this when the TenantFilter is in place.
+            newUser.setTenantId(null);
 
             userRepository.save(newUser);
 
@@ -98,27 +106,21 @@ public class WebController {
     @GetMapping("/dashboard")
     public String dashboardPage(Model model, @AuthenticationPrincipal Object principal) {
         String username;
+        String role = ""; // Track role for routing
 
         if (principal instanceof UserDetails) {
-            username = ((UserDetails) principal).getUsername();
+            UserDetails userDetails = (UserDetails) principal;
+            username = userDetails.getUsername();
+            role = userDetails.getAuthorities().stream().findFirst()
+                    .map(a -> a.getAuthority().replace("ROLE_", "")).orElse("");
         } else if (principal instanceof OAuth2User) {
+            // ... (SSO logic remains the same)
             username = ((OAuth2User) principal).getAttribute("name");
-            if (username == null) {
-                username = ((OAuth2User) principal).getAttribute("login");
-            }
-            if (username == null) {
-                username = ((OAuth2User) principal).getName();
-            }
-            //
-            // vvv ADD THIS NEW BLOCK vvv
-            //
+            if (username == null) username = ((OAuth2User) principal).getAttribute("login");
+            if (username == null) username = ((OAuth2User) principal).getName();
         } else if (principal instanceof Saml2AuthenticatedPrincipal) {
             Saml2AuthenticatedPrincipal samlPrincipal = (Saml2AuthenticatedPrincipal) principal;
-            // Get the user's email, which is the NameID
             username = samlPrincipal.getName();
-            //
-            // ^^^ END OF NEW BLOCK ^^^
-            //
         } else if (principal != null) {
             username = principal.toString();
         } else {
@@ -126,40 +128,23 @@ public class WebController {
         }
 
         model.addAttribute("username", username);
-        return "dashboard";
+
+        // 🚀 NEW LOGIC: Route based on role
+        if ("SUPERADMIN".equals(role)) {
+            // Redirect SUPERADMIN to its specific controller/page
+            return "redirect:/superadmin/dashboard";
+        }
+
+        // Standard user/tenant admin dashboard (admindashboard renamed to just 'dashboard' for simplicity)
+        // Note: Tenant Admin will see a filtered dashboard automatically due to multitenancy filter/context
+        return "dashboard"; // Renders src/main/resources/templates/dashboard.html
     }
 
 
 
     /**
-     * 🚀 NEW: Mapping for the Admin Dashboard.
-     * This path is secured in WebSecurityConfig to only allow users with the 'ADMIN' role.
+     * The old /admindashboard is now unused or should be deleted.
+     * The Superadmin has its own controller, and Tenant Admins use /dashboard (filtered).
+     * I will delete the old /admindashboard method for production cleanliness.
      */
-    @GetMapping("/admindashboard")
-    public String adminDashboardPage(
-            Model model,
-            @AuthenticationPrincipal Object principal) { // ⬅️ ADD HttpServletRequest
-
-        String username;
-
-        if (principal instanceof UserDetails) {
-            username = ((UserDetails) principal).getUsername();
-        } else {
-            username = "Admin User";
-        }
-
-        // 1. Fetch all users from the database and separate by provider
-        java.util.List<User> allUsers = userRepository.findAll();
-        java.util.List<User> nativeUsers = allUsers.stream()
-                .filter(user -> user.getProvider() == AuthProvider.LOCAL)
-                .collect(java.util.stream.Collectors.toList());
-        java.util.List<User> ssoUsers = allUsers.stream()
-                .filter(user -> user.getProvider() != AuthProvider.LOCAL)
-                .collect(java.util.stream.Collectors.toList());
-
-        model.addAttribute("nativeUsers", nativeUsers);
-        model.addAttribute("ssoUsers", ssoUsers);
-        model.addAttribute("username", username);
-        return "admindashboard";
-    }
 }

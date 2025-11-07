@@ -1,7 +1,9 @@
 package com.example.ssoapp.service;
 
 import com.example.ssoapp.model.User;
+import com.example.ssoapp.model.Role; // NEW IMPORT
 import com.example.ssoapp.repository.UserRepository;
+import com.example.ssoapp.config.TenantContext; // NEW IMPORT - We'll create this later
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -13,10 +15,6 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.Collection;
 
-/**
- * Implements Spring Security's UserDetailsService interface.
- * This class is crucial for handling local form-based authentication.
- */
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
@@ -24,37 +22,52 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private UserRepository userRepository;
 
     /**
-     * Loads the user details from the database based on the input (username or email)
-     * provided in the login form.
+     * Loads the user details from the database based on the input (username or email).
+     * Now includes multitenancy logic based on TenantContext.
      */
     @Override
     public UserDetails loadUserByUsername(String input) throws UsernameNotFoundException {
 
-        // 1. Find the user by either username or email (using your custom repository method)
-        User user = userRepository.findByUsernameOrEmail(input, input)
-                .orElseThrow(() ->
-                        new UsernameNotFoundException("User not found with username/email: " + input));
+        User user = null;
+        String currentTenantId = TenantContext.getCurrentTenantId(); // Get current tenant ID
 
-        // 2. Check if user is a LOCAL user (organic login only for LOCAL users)
+        // 1. SCENARIO A: SUPERADMIN login (tenantId will be null)
+        if (currentTenantId == null || currentTenantId.isEmpty()) {
+            // Only allow SUPERADMIN login on the main domain (localhost:8080)
+            user = userRepository.findSuperAdminByEmail(input)
+                    .orElse(null); // Return null if not found
+        }
+
+        // 2. SCENARIO B: TENANT USER/ADMIN login
+        if (user == null && currentTenantId != null && !currentTenantId.isEmpty()) {
+            // Filter by the resolved tenantId from the host/subdomain
+            user = userRepository.findByUsernameOrEmailAndTenantId(input, input, currentTenantId)
+                    .orElseThrow(() ->
+                            new UsernameNotFoundException("User not found in tenant '" + currentTenantId + "': " + input));
+        }
+
+        // 3. FINAL CHECK: If no user found in either scenario
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found: " + input);
+        }
+
+        // 4. Continue with standard checks
         if (user.getProvider() != com.example.ssoapp.model.AuthProvider.LOCAL) {
             throw new UsernameNotFoundException("User found but is not a local user. Please use SSO login.");
         }
-
-        // 3. Check if user has a password (LOCAL users must have a password)
         if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
-            throw new UsernameNotFoundException("User found but has no password set. Please reset your password.");
+            throw new UsernameNotFoundException("User found but has no password set.");
         }
 
-        // 4. Prepare the user's role/authority (e.g., "ADMIN" or "USER")
+        // 5. Prepare the user's role/authority
         Collection<? extends GrantedAuthority> authorities =
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole()));
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().withPrefix())); // Use withPrefix()
 
-        // 5. Return Spring Security's built-in UserDetails implementation,
-        // passing the HASHED password for validation.
+        // 6. Return UserDetails
         return new org.springframework.security.core.userdetails.User(
-                user.getUsername(),      // Principal name
-                user.getPassword(),      // Must be the HASHED password from the DB
-                authorities              // Roles/Permissions
+                user.getUsername(),
+                user.getPassword(),
+                authorities
         );
     }
 }
