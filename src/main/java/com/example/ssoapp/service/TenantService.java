@@ -50,6 +50,8 @@ public class TenantService {
         tenant.setSubdomain(subdomain);
         Tenant savedTenant = tenantRepository.save(tenant);
 
+        // ✅ CRITICAL: Initialize SSO configs AFTER tenant is saved
+        //logger.info("Initializing SSO configs for new tenant: {}", savedTenant.getId());
         ssoConfigService.initializeDefaultConfigsForTenant(savedTenant.getId());
 
         // Create admin user for this tenant
@@ -57,7 +59,7 @@ public class TenantService {
         adminUser.setUsername(orgName + "_admin");
         adminUser.setEmail(adminEmail);
         adminUser.setPassword(passwordEncoder.encode(adminPassword));
-        adminUser.setTenantId(savedTenant.getId()); // tenant_id is Long
+        adminUser.setTenantId(savedTenant.getId());
         adminUser.setRole(Role.TENANT_ADMIN);
         adminUser.setProvider(com.example.ssoapp.model.AuthProvider.LOCAL);
 

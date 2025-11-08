@@ -53,9 +53,17 @@ public class SsoConfigService {
         Long tenantId = TenantContext.getTenantIdAsLong();
 
         if (tenantId != null) {
-            return ssoConfigRepository.findByTenantId(tenantId);
+            List<SsoConfig> configs = ssoConfigRepository.findByTenantId(tenantId);
+
+            // ✅ Auto-initialize if empty
+            if (configs.isEmpty()) {
+                logger.info("No SSO configs found for tenant {}, initializing...", tenantId);
+                initializeDefaultConfigsForTenant(tenantId);
+                configs = ssoConfigRepository.findByTenantId(tenantId);
+            }
+
+            return configs;
         } else {
-            // SuperAdmin - return empty list
             return List.of();
         }
     }
