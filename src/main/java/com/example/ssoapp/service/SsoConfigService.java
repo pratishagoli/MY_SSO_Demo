@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class SsoConfigService {
@@ -32,9 +33,10 @@ public class SsoConfigService {
             return ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType)
                     .orElse(null);
         } else {
-            // SuperAdmin context - no SSO configs
-            logger.debug("SuperAdmin context - no SSO configs available");
-            return null;
+            // ✅ NEW: SuperAdmin context - lookup global configs
+            logger.debug("SuperAdmin context - looking up global SSO config");
+            return ssoConfigRepository.findByTenantIdIsNullAndSsoType(ssoType)
+                    .orElse(null);
         }
     }
 
@@ -53,18 +55,13 @@ public class SsoConfigService {
         Long tenantId = TenantContext.getTenantIdAsLong();
 
         if (tenantId != null) {
-            List<SsoConfig> configs = ssoConfigRepository.findByTenantId(tenantId);
-
-            // ✅ Auto-initialize if empty
-            if (configs.isEmpty()) {
-                logger.info("No SSO configs found for tenant {}, initializing...", tenantId);
-                initializeDefaultConfigsForTenant(tenantId);
-                configs = ssoConfigRepository.findByTenantId(tenantId);
-            }
-
-            return configs;
+            return ssoConfigRepository.findByTenantId(tenantId);
         } else {
-            return List.of();
+            // ✅ NEW: SuperAdmin - return global configs
+            logger.debug("SuperAdmin context - fetching global SSO configs");
+            return ssoConfigRepository.findAll().stream()
+                    .filter(config -> config.getTenantId() == null)
+                    .collect(Collectors.toList());
         }
     }
 

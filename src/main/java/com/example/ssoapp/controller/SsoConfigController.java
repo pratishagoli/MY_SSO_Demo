@@ -3,23 +3,20 @@ package com.example.ssoapp.controller;
 import com.example.ssoapp.config.TenantContext;
 import com.example.ssoapp.model.SsoConfig;
 import com.example.ssoapp.service.SsoConfigService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Controller
 @RequestMapping("/admin/sso")
@@ -33,29 +30,57 @@ public class SsoConfigController {
     @GetMapping("/config")
     @PreAuthorize("hasAnyAuthority('ROLE_TENANT_ADMIN', 'ROLE_SUPERADMIN')")
     public String ssoConfigPage(Model model) {
-        logger.info("SSO Config page accessed");
+        logger.info("=== SSO Config page accessed ===");
 
-        // Get current tenant ID
-        String tenantIdString = TenantContext.getCurrentTenantId();
-        logger.info("Current tenant context: {}", tenantIdString);
+        Long tenantId = TenantContext.getTenantIdAsLong();
+        logger.info("Current tenant context: {}", tenantId);
 
-        // Get or initialize SSO configs for this tenant
-        List<SsoConfig> ssoConfigs = ssoConfigService.getAllSsoConfigs();
+        List<SsoConfig> configs = new ArrayList<>();
 
-        // If no configs exist, initialize them
-        if (ssoConfigs.isEmpty() && tenantIdString != null && !tenantIdString.isEmpty()) {
-            try {
-                Long tenantId = Long.parseLong(tenantIdString);
-                logger.info("No SSO configs found for tenant {}, initializing defaults", tenantId);
-                ssoConfigService.initializeDefaultConfigsForTenant(tenantId);
-                ssoConfigs = ssoConfigService.getAllSsoConfigs();
-            } catch (NumberFormatException e) {
-                logger.error("Invalid tenant ID format: {}", tenantIdString);
+        try {
+            // Fetch existing configs
+            configs = ssoConfigService.getAllSsoConfigs();
+            logger.info("Fetched {} SSO configs from service", configs != null ? configs.size() : 0);
+
+            // ✅ FIXED: Only initialize if NO configs exist at all
+            if (configs == null || configs.isEmpty()) {
+                logger.info("No SSO configs found, attempting to initialize defaults");
+
+                // Only initialize if we have a tenant context
+                if (tenantId != null) {
+                    try {
+                        logger.info("Initializing default SSO configs for tenant: {}", tenantId);
+                        ssoConfigService.initializeDefaultConfigsForTenant(tenantId);
+
+                        // Fetch again after initialization
+                        configs = ssoConfigService.getAllSsoConfigs();
+                        logger.info("After initialization, fetched {} configs", configs != null ? configs.size() : 0);
+                    } catch (Exception e) {
+                        logger.error("Failed to initialize SSO configs for tenant {}: {}", tenantId, e.getMessage(), e);
+                        // Continue with empty list
+                        configs = new ArrayList<>();
+                    }
+                } else {
+                    logger.warn("Cannot initialize SSO configs without tenant context");
+                    configs = new ArrayList<>();
+                }
+            } else {
+                logger.info("Found {} existing SSO configs for tenant {}", configs.size(), tenantId);
+
+                // Log each config for debugging
+                for (SsoConfig config : configs) {
+                    logger.info("  - Config: type={}, enabled={}, tenantId={}",
+                            config.getSsoType(), config.getEnabled(), config.getTenantId());
+                }
             }
+        } catch (Exception e) {
+            logger.error("Error loading SSO configs: {}", e.getMessage(), e);
+            configs = new ArrayList<>();
         }
 
-        logger.info("Loaded {} SSO configs", ssoConfigs.size());
-        model.addAttribute("ssoConfigs", ssoConfigs);
+        // Always add the list to model, even if empty
+        model.addAttribute("ssoConfigs", configs);
+        logger.info("Added {} configs to model", configs.size());
 
         return "ssoconfig";
     }
@@ -70,11 +95,10 @@ public class SsoConfigController {
                 return ResponseEntity.badRequest().body("Missing 'enabled' field");
             }
 
-            logger.info("Updating SSO config: {} to enabled={}", ssoType, enabled);
             SsoConfig updated = ssoConfigService.updateSsoConfig(ssoType.toUpperCase(), enabled);
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            logger.error("Failed to update SSO config: {}", e.getMessage(), e);
+            logger.error("Error updating SSO config: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body("Failed to update SSO config: " + e.getMessage());
         }
     }
@@ -84,12 +108,10 @@ public class SsoConfigController {
     @ResponseBody
     public ResponseEntity<Map<String, String>> getSsoConfigDetails(@PathVariable String ssoType) {
         String type = ssoType.toUpperCase();
-        logger.info("Fetching details for SSO type: {}", type);
-
         SsoConfig config = ssoConfigService.getSsoConfigByType(type);
 
         if (config == null) {
-            logger.error("No config found for type: {}", type);
+            logger.warn("No config found for type: {}", type);
             return ResponseEntity.notFound().build();
         }
 
@@ -100,7 +122,7 @@ public class SsoConfigController {
         configMap.put("status", config.getEnabled() ? "Enabled" : "Disabled");
         configMap.put("provider", "MiniOrange");
 
-        // Type-specific properties
+        // Read properties from database
         switch (type) {
             case "JWT":
                 configMap.put("protocol", "JWT (JSON Web Token)");
@@ -109,17 +131,15 @@ public class SsoConfigController {
                 configMap.put("redirectUri", "http://localhost:8080/auth/jwt/callback");
                 configMap.put("loginUrl", "https://pratisha.xecurify.com/moas/idp/jwtsso/379428");
                 break;
-
             case "OIDC":
                 configMap.put("protocol", "OIDC (OpenID Connect)");
                 configMap.put("clientId", config.getClientId() != null ? config.getClientId() : "");
                 configMap.put("clientSecret", config.getClientSecret() != null ? config.getClientSecret() : "");
                 configMap.put("scope", "openid,profile,email");
                 configMap.put("issuerUri", config.getIssuerUri() != null ? config.getIssuerUri() : "");
-                configMap.put("redirectUri", "http://localhost:8080/login/oauth2/code/miniorange");
                 configMap.put("grantType", "authorization_code");
+                configMap.put("redirectUri", "http://localhost:8080/login/oauth2/code/miniorange");
                 break;
-
             case "SAML":
                 configMap.put("protocol", "SAML 2.0");
                 configMap.put("entityId", config.getSpEntityId() != null ? config.getSpEntityId() : "");
@@ -130,7 +150,6 @@ public class SsoConfigController {
                 configMap.put("acsUrl", "http://localhost:8080/login/saml2/sso/miniorange-saml");
                 configMap.put("nameIdFormat", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
                 break;
-
             default:
                 return ResponseEntity.badRequest().build();
         }
@@ -143,7 +162,6 @@ public class SsoConfigController {
     @ResponseBody
     public ResponseEntity<?> updateSsoConfigDetails(@PathVariable String ssoType, @RequestBody Map<String, String> details) {
         try {
-            logger.info("Updating SSO config details for: {}", ssoType);
             SsoConfig updatedConfig = ssoConfigService.updateSsoConfigDetails(ssoType.toUpperCase(), details);
             return ResponseEntity.ok(updatedConfig);
         } catch (Exception e) {
@@ -152,16 +170,13 @@ public class SsoConfigController {
         }
     }
 
+    // Rest of your methods remain the same...
     @GetMapping("/test/{ssoType}")
     @PreAuthorize("hasAnyAuthority('ROLE_TENANT_ADMIN', 'ROLE_SUPERADMIN')")
     public String testSso(@PathVariable String ssoType, jakarta.servlet.http.HttpServletRequest request) {
         String type = ssoType.toUpperCase();
-        logger.info("Testing SSO type: {}", type);
 
-        // Store admin session before test
         storeAdminSession(request);
-
-        // Set test mode flag in session
         request.getSession().setAttribute("sso_test_mode", true);
         request.getSession().setAttribute("sso_test_type", type);
 
@@ -178,15 +193,12 @@ public class SsoConfigController {
     }
 
     @GetMapping("/test/jwt/callback")
-    public String jwtTestCallback(@RequestParam("id_token") String jwt,
-                                  jakarta.servlet.http.HttpServletRequest request,
-                                  jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+    public String jwtTestCallback(@RequestParam("id_token") String jwt, jakarta.servlet.http.HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
         Map<String, Object> testResult = new HashMap<>();
         Map<String, Object> attributes = new HashMap<>();
         String testStatus = "success";
 
         try {
-            // Basic JWT decoding (without verification for test purposes)
             String[] parts = jwt.split("\\.");
             if (parts.length >= 2) {
                 String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
@@ -231,7 +243,8 @@ public class SsoConfigController {
     }
 
     private void storeAdminSession(jakarta.servlet.http.HttpServletRequest request) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated()) {
             request.getSession().setAttribute("admin_test_principal", auth);
             request.getSession().setAttribute("admin_test_authorities", auth.getAuthorities());
@@ -239,16 +252,16 @@ public class SsoConfigController {
     }
 
     private void restoreAdminSession(jakarta.servlet.http.HttpServletRequest request) {
-        Authentication adminAuth =
-                (Authentication) request.getSession().getAttribute("admin_test_principal");
+        org.springframework.security.core.Authentication adminAuth =
+                (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
         if (adminAuth != null) {
             org.springframework.security.core.context.SecurityContext securityContext =
-                    SecurityContextHolder.getContext();
+                    org.springframework.security.core.context.SecurityContextHolder.getContext();
             securityContext.setAuthentication(adminAuth);
 
-            HttpSession session = request.getSession();
+            jakarta.servlet.http.HttpSession session = request.getSession();
             session.setAttribute(
-                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                    org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                     securityContext
             );
 

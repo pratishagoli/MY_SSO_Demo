@@ -3,7 +3,14 @@ package com.example.ssoapp.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "sso_config")
+@Table(name = "sso_config",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_tenant_sso_type",
+                        columnNames = {"tenant_id", "sso_type"} // The correct one
+                )
+        }
+)
 public class SsoConfig {
 
     @Id
@@ -14,6 +21,7 @@ public class SsoConfig {
     @Column(name = "tenant_id", nullable = true)
     private Long tenantId; // NULL = global/superadmin config, NOT NULL = tenant-specific
 
+    @Column(name = "sso_type") // <-- ADD THIS ANNOTATION
     private String ssoType;
     private Boolean enabled;
     private String configUrl;

@@ -38,7 +38,21 @@ public class TenantFilter implements Filter {
         String requestURI = httpRequest.getRequestURI();
 
         logger.debug("🌍 TenantFilter: host={}, uri={}", serverName, requestURI);
+        // Skip filtering for admin SSO routes when no subdomain
+        if (requestURI.startsWith("/admin/sso") &&
+                (serverName.equals("localhost") || !serverName.contains("."))) {
+            logger.info("⚠️ Skipping tenant filter for SSO config access");
+            chain.doFilter(request, response);
+            return;
+        }
 
+        // ✅ NEW: Skip tenant filtering for SuperAdmin SSO config routes
+        if (requestURI.startsWith("/superadmin") ||
+                (requestURI.startsWith("/admin/sso") && (serverName.equals("localhost") || serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")))) {
+            logger.debug("🧭 Skipping tenant filter for SuperAdmin route: {}", requestURI);
+            chain.doFilter(request, response);
+            return;
+        }
         try {
             // Extract subdomain (e.g., "pratik" from "pratik.localhost")
             String subdomain = extractSubdomain(serverName);
