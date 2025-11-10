@@ -2,82 +2,373 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Superadmin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuperAdmin Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        .logout { float: right; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
-        .tenant-form input, .tenant-form button { padding: 10px; margin: 5px 0; width: calc(100% - 22px); box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        .tenant-form button { background-color: #007bff; color: white; cursor: pointer; width: 100%; }
-        .tenant-form button:hover { background-color: #0056b3; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #e2e2e2; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Header Bar --- */
+        .header {
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            padding: 0 2rem;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-logo {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logout-btn {
+            background-color: #d93025;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background-color: #c22015;
+        }
+
+        /* --- Main Content Area --- */
+        .main-container {
+            padding: 2rem;
+        }
+
+        .dashboard-card {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-message {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #222;
+            margin: 0;
+        }
+
+        .welcome-subtitle {
+            font-size: 1rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+
+        /* --- Alert Messages --- */
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* --- Section Headers --- */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        /* --- Form Styles --- */
+        .create-tenant-form {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .action-btn-blue {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            background-color: #007bff;
+            color: #ffffff;
+            border: none;
+            transition: background-color 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .action-btn-blue:hover {
+            background-color: #0056b3;
+        }
+
+        /* --- Table Styling --- */
+        .tenant-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .tenant-table th,
+        .tenant-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .tenant-table th {
+            background-color: #f8f8f8;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .tenant-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+        .tenant-table td a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .tenant-table td a:hover {
+            text-decoration: underline;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 3rem;
+            font-size: 1rem;
+        }
+
+        /* --- Badge Styles --- */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .badge-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="logout">
-        <form th:action="@{/logout}" method="post">
-            <button type="submit">Logout</button>
+<header class="header">
+    <div class="header-logo">
+        SuperAdmin Control Panel
+    </div>
+
+    <div class="header-actions">
+        <form id="logoutForm" th:action="@{/logout}" method="post" style="margin: 0;">
+            <button type="submit" class="logout-btn">Logout</button>
         </form>
     </div>
+</header>
 
-    <h1>Superadmin Dashboard</h1>
-    <p>Welcome, <strong th:text="${username}">Superadmin User</strong>. You are managing all tenants.</p>
+<main class="main-container">
+    <div class="dashboard-card">
+        <div class="admin-header">
+            <div>
+                <h1 class="welcome-message">SuperAdmin Dashboard</h1>
+                <p class="welcome-subtitle">
+                    Welcome, <strong th:text="${username}">SuperAdmin</strong>.
+                    You are managing all tenants across the system.
+                </p>
+            </div>
+        </div>
 
-    <div th:if="${errorMessage}" class="error" th:text="${errorMessage}"></div>
-    <div th:if="${param.success}" class="success">Tenant created successfully!</div>
+        <!-- Success/Error Messages -->
+        <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
+        <div th:if="${errorMessage}" class="alert alert-error" th:text="${errorMessage}"></div>
 
-    <div th:if="${#fields.hasErrors('createTenantRequest')}" class="error">
-        <ul>
-            <li th:each="err : ${#fields.errors('createTenantRequest.*')}" th:text="${err}">Validation Error</li>
-        </ul>
+        <!-- Create New Tenant Section -->
+        <div class="section-header">
+            <h2 class="section-title">Create New Tenant</h2>
+        </div>
+
+        <form th:action="@{/superadmin/create-tenant}"
+              th:object="${createTenantRequest}"
+              method="post"
+              class="create-tenant-form">
+
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+            <div class="form-group">
+                <label for="orgName">Organization Name</label>
+                <input type="text"
+                       id="orgName"
+                       th:field="*{orgName}"
+                       placeholder="e.g., Acme Corporation"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label for="subdomain">Subdomain</label>
+                <input type="text"
+                       id="subdomain"
+                       th:field="*{subdomain}"
+                       placeholder="e.g., acme (will be acme.localhost)"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label for="adminEmail">Admin Email</label>
+                <input type="email"
+                       id="adminEmail"
+                       th:field="*{adminEmail}"
+                       placeholder="admin@acme.com"
+                       required>
+            </div>
+
+            <div class="form-group">
+                <label for="adminPassword">Admin Password</label>
+                <input type="password"
+                       id="adminPassword"
+                       th:field="*{adminPassword}"
+                       placeholder="Minimum 6 characters"
+                       minlength="6"
+                       required>
+            </div>
+
+            <div class="form-group full-width">
+                <button type="submit" class="action-btn-blue">
+                    Create Tenant Organization
+                </button>
+            </div>
+        </form>
+
+        <!-- All Tenants Section -->
+        <div class="section-header">
+            <h2 class="section-title">All Active Tenants</h2>
+        </div>
+
+        <table class="tenant-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Organization Name</th>
+                <th>Subdomain</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="tenant : ${tenants}">
+                <td th:text="${tenant.id}">1</td>
+                <td th:text="${tenant.name}">Acme Corporation</td>
+                <td>
+                    <code th:text="${tenant.subdomain} + '.localhost'">acme.localhost</code>
+                </td>
+                <td>
+                    <span class="badge badge-success">Active</span>
+                </td>
+                <td>
+                    <a th:href="@{'/superadmin/users?tenantId=' + ${tenant.id}}">
+                        View Users
+                    </a>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(tenants)}">
+                <td colspan="5" class="empty-state">
+                    No tenants found. Create your first tenant above.
+                </td>
+            </tr>
+            </tbody>
+        </table>
     </div>
-
-
-    <h2>Create New Tenant</h2>
-    <form th:action="@{/superadmin/create-tenant}" th:object="${createTenantRequest}" method="post" class="tenant-form">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-
-        <input type="text" th:field="*{orgName}" placeholder="Tenant Name (e.g., Company A)" required>
-
-        <input type="email" th:field="*{adminEmail}" placeholder="Tenant Admin Email" required>
-
-        <input type="password" th:field="*{adminPassword}" placeholder="Tenant Admin Password (min 6 chars)" required>
-
-        <input type="text" th:field="*{subdomain}" placeholder="Subdomain (e.g., tenant1)" required>
-
-        <button type="submit">Create Tenant</button>
-    </form>
-
-    <h2>All Active Tenants</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>Tenant ID</th>
-            <th>Admin Email</th>
-            <th>Subdomain</th>
-            <th>Users</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="tenant : ${tenants}">
-            <td th:text="${tenant.id}">tenant1</td>
-            <td th:text="${tenant.name}">Company Name</td> <td th:text="${tenant.subdomain}">tenant1.localhost</td>
-            <td><a th:href="@{'/superadmin/users?tenantId=' + ${tenant.id}}">View Users</a></td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(tenants)}">
-            <td colspan="4">No tenants found.</td>
-        </tr>
-        </tbody>
-    </table>
-
-</div>
+</main>
 
 </body>
 </html>
