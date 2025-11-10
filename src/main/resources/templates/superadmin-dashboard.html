@@ -2,8 +2,7 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuperAdmin Dashboard</title>
+    <title>Superadmin Dashboard</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -12,7 +11,7 @@
             padding: 0;
         }
 
-        /* --- Header Bar --- */
+        /* Header Section */
         .header {
             background-color: #ffffff;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -35,6 +34,22 @@
             gap: 10px;
         }
 
+        .btn-create-tenant {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-create-tenant:hover {
+            background-color: #0056b3;
+        }
+
         .logout-btn {
             background-color: #d93025;
             color: white;
@@ -51,7 +66,7 @@
             background-color: #c22015;
         }
 
-        /* --- Main Content Area --- */
+        /* Main Container */
         .main-container {
             padding: 2rem;
         }
@@ -66,122 +81,50 @@
             margin: 0 auto;
         }
 
-        .admin-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-
         .welcome-message {
             font-size: 2rem;
             font-weight: 600;
             color: #222;
-            margin: 0;
+            margin: 0 0 0.5rem 0;
         }
 
         .welcome-subtitle {
             font-size: 1rem;
             color: #666;
-            margin-top: 0.5rem;
+            margin-bottom: 2rem;
         }
 
-        /* --- Alert Messages --- */
+        /* Alert Messages */
         .alert {
             padding: 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             border-radius: 6px;
-            font-weight: 500;
+            display: none;
         }
 
-        .alert-success {
+        .alert.success {
             background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
+            display: block;
         }
 
-        .alert-error {
+        .alert.error {
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
+            display: block;
         }
 
-        /* --- Section Headers --- */
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 2.5rem;
-            margin-bottom: 1.5rem;
-        }
-
+        /* Table Styling */
         .section-title {
             font-size: 1.5rem;
             font-weight: 600;
             color: #333;
-            margin: 0;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
         }
 
-        /* --- Form Styles --- */
-        .create-tenant-form {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            margin-bottom: 2rem;
-            padding: 1.5rem;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-
-        .form-group label {
-            font-weight: 500;
-            color: #555;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        .form-group input {
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 1rem;
-            transition: border-color 0.2s ease;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-
-        .action-btn-blue {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 500;
-            cursor: pointer;
-            background-color: #007bff;
-            color: #ffffff;
-            border: none;
-            transition: background-color 0.2s;
-            font-size: 0.95rem;
-        }
-
-        .action-btn-blue:hover {
-            background-color: #0056b3;
-        }
-
-        /* --- Table Styling --- */
         .tenant-table {
             width: 100%;
             border-collapse: collapse;
@@ -206,40 +149,196 @@
             background-color: #fafafa;
         }
 
-        .tenant-table td a {
-            color: #007bff;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .tenant-table td a:hover {
-            text-decoration: underline;
-        }
-
-        .empty-state {
-            text-align: center;
-            color: #999;
-            padding: 3rem;
-            font-size: 1rem;
-        }
-
-        /* --- Badge Styles --- */
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
+        .action-btn {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
             font-size: 0.85rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background-color: #138496;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border: 1px solid #888;
+            border-radius: 8px;
+            width: 500px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.8rem;
             font-weight: 600;
         }
 
-        .badge-success {
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .save-btn {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .save-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .cancel-btn {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .cancel-btn:hover {
+            background-color: #e0e0e0;
+        }
+
+        /* User Modal Specific Styles */
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .user-table th,
+        .user-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+
+        .user-table th {
+            background-color: #f8f8f8;
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .user-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+        .modal-content-wide {
+            width: 800px;
+            max-width: 95%;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .user-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-local {
             background-color: #28a745;
             color: white;
         }
 
-        .badge-secondary {
-            background-color: #6c757d;
+        .badge-sso {
+            background-color: #17a2b8;
             color: white;
+        }
+
+        .badge-role {
+            background-color: #ffc107;
+            color: #333;
         }
     </style>
 </head>
@@ -247,10 +346,10 @@
 
 <header class="header">
     <div class="header-logo">
-        SuperAdmin Control Panel
+        SuperAdmin Dashboard
     </div>
-
     <div class="header-actions">
+        <button class="btn-create-tenant" onclick="openCreateTenantModal()">Create Tenant Organization</button>
         <form id="logoutForm" th:action="@{/logout}" method="post" style="margin: 0;">
             <button type="submit" class="logout-btn">Logout</button>
         </form>
@@ -259,116 +358,259 @@
 
 <main class="main-container">
     <div class="dashboard-card">
-        <div class="admin-header">
-            <div>
-                <h1 class="welcome-message">SuperAdmin Dashboard</h1>
-                <p class="welcome-subtitle">
-                    Welcome, <strong th:text="${username}">SuperAdmin</strong>.
-                    You are managing all tenants across the system.
-                </p>
-            </div>
-        </div>
+        <h1 class="welcome-message" th:text="'Welcome, ' + ${username}">Welcome, Superadmin</h1>
+        <p class="welcome-subtitle">You are managing all tenants across the system.</p>
 
         <!-- Success/Error Messages -->
-        <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
-        <div th:if="${errorMessage}" class="alert alert-error" th:text="${errorMessage}"></div>
+        <div th:if="${successMessage}" class="alert success" th:text="${successMessage}"></div>
+        <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
 
-        <!-- Create New Tenant Section -->
-        <div class="section-header">
-            <h2 class="section-title">Create New Tenant</h2>
-        </div>
-
-        <form th:action="@{/superadmin/create-tenant}"
-              th:object="${createTenantRequest}"
-              method="post"
-              class="create-tenant-form">
-
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-
-            <div class="form-group">
-                <label for="orgName">Organization Name</label>
-                <input type="text"
-                       id="orgName"
-                       th:field="*{orgName}"
-                       placeholder="e.g., Acme Corporation"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="subdomain">Subdomain</label>
-                <input type="text"
-                       id="subdomain"
-                       th:field="*{subdomain}"
-                       placeholder="e.g., acme (will be acme.localhost)"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="adminEmail">Admin Email</label>
-                <input type="email"
-                       id="adminEmail"
-                       th:field="*{adminEmail}"
-                       placeholder="admin@acme.com"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label for="adminPassword">Admin Password</label>
-                <input type="password"
-                       id="adminPassword"
-                       th:field="*{adminPassword}"
-                       placeholder="Minimum 6 characters"
-                       minlength="6"
-                       required>
-            </div>
-
-            <div class="form-group full-width">
-                <button type="submit" class="action-btn-blue">
-                    Create Tenant Organization
-                </button>
-            </div>
-        </form>
-
-        <!-- All Tenants Section -->
-        <div class="section-header">
-            <h2 class="section-title">All Active Tenants</h2>
-        </div>
-
+        <!-- Tenants Table -->
+        <h2 class="section-title">All Active Tenants</h2>
         <table class="tenant-table">
             <thead>
             <tr>
-                <th>ID</th>
+                <th>Tenant ID</th>
                 <th>Organization Name</th>
                 <th>Subdomain</th>
-                <th>Status</th>
+                <th>Admin Email</th>
                 <th>Actions</th>
             </tr>
             </thead>
             <tbody>
             <tr th:each="tenant : ${tenants}">
                 <td th:text="${tenant.id}">1</td>
-                <td th:text="${tenant.name}">Acme Corporation</td>
+                <td th:text="${tenant.name}">Company Name</td>
+                <td th:text="${tenant.subdomain}">tenant1</td>
+                <td th:text="${tenant.id}">admin@example.com</td>
                 <td>
-                    <code th:text="${tenant.subdomain} + '.localhost'">acme.localhost</code>
-                </td>
-                <td>
-                    <span class="badge badge-success">Active</span>
-                </td>
-                <td>
-                    <a th:href="@{'/superadmin/users?tenantId=' + ${tenant.id}}">
-                        View Users
-                    </a>
+                    <button class="action-btn" th:data-tenant-id="${tenant.id}" th:data-tenant-name="${tenant.name}" onclick="viewTenantUsers(this)">View Users</button>
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(tenants)}">
-                <td colspan="5" class="empty-state">
-                    No tenants found. Create your first tenant above.
-                </td>
+                <td colspan="5" class="no-data">No tenants found.</td>
             </tr>
             </tbody>
         </table>
     </div>
 </main>
+
+<!-- Create Tenant Modal -->
+<div id="createTenantModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeCreateTenantModal()">&times;</span>
+        <h2>Create New Tenant</h2>
+        <form id="createTenantForm">
+            <div class="form-group">
+                <label for="orgName">Organization Name</label>
+                <input type="text" id="orgName" name="orgName" placeholder="e.g., Acme Corporation" required>
+            </div>
+            <div class="form-group">
+                <label for="subdomain">Subdomain</label>
+                <input type="text" id="subdomain" name="subdomain" placeholder="e.g., acme (will become acme.localhost)" required pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only">
+            </div>
+            <div class="form-group">
+                <label for="adminEmail">Admin Email</label>
+                <input type="email" id="adminEmail" name="adminEmail" placeholder="admin@example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="adminPassword">Admin Password</label>
+                <input type="password" id="adminPassword" name="adminPassword" placeholder="Minimum 6 characters" required minlength="6">
+            </div>
+            <div class="modal-buttons">
+                <button type="submit" class="save-btn">Create Tenant</button>
+                <button type="button" class="cancel-btn" onclick="closeCreateTenantModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- View Users Modal -->
+<div id="viewUsersModal" class="modal">
+    <div class="modal-content modal-content-wide">
+        <span class="close" onclick="closeViewUsersModal()">&times;</span>
+        <h2 id="usersModalTitle">Users for Tenant</h2>
+        <div id="usersModalContent">
+            <div class="loading">Loading users...</div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    // Get CSRF token
+    const csrfForm = document.getElementById('logoutForm');
+    let csrfToken = '';
+    let csrfParameterName = '';
+
+    if (csrfForm) {
+        const csrfInput = csrfForm.querySelector('input[name="_csrf"]');
+        if (csrfInput) {
+            csrfToken = csrfInput.value;
+            csrfParameterName = csrfInput.name;
+        }
+    }
+
+    if (!csrfToken) {
+        csrfToken = /*[[${_csrf.token}]]*/ '';
+        csrfParameterName = /*[[${_csrf.parameterName}]]*/ '';
+    }
+
+    // Create Tenant Modal Functions
+    function openCreateTenantModal() {
+        const modal = document.getElementById('createTenantModal');
+        modal.style.display = 'flex';
+        // Reset form
+        document.getElementById('createTenantForm').reset();
+    }
+
+    function closeCreateTenantModal() {
+        const modal = document.getElementById('createTenantModal');
+        modal.style.display = 'none';
+    }
+
+    // Handle Create Tenant Form Submission
+    document.getElementById('createTenantForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+
+        fetch('/superadmin/create-tenant', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-TOKEN': csrfToken,
+                [csrfParameterName]: csrfToken
+            },
+            body: new URLSearchParams(data)
+        })
+        .then(response => {
+            if (response.ok) {
+                // Success - reload page to show new tenant
+                window.location.reload();
+            } else {
+                return response.text().then(text => {
+                    throw new Error(text || 'Failed to create tenant');
+                });
+            }
+        })
+        .catch(error => {
+            alert('Error creating tenant: ' + error.message);
+        });
+    });
+
+    // View Users Modal Functions
+    function viewTenantUsers(button) {
+        const tenantId = button.getAttribute('data-tenant-id');
+        const tenantName = button.getAttribute('data-tenant-name');
+
+        const modal = document.getElementById('viewUsersModal');
+        const modalTitle = document.getElementById('usersModalTitle');
+        const modalContent = document.getElementById('usersModalContent');
+
+        modalTitle.textContent = `Users for ${tenantName}`;
+        modalContent.innerHTML = '<div class="loading">Loading users...</div>';
+
+        modal.style.display = 'flex';
+
+        // Fetch users for this tenant
+        fetch(`/superadmin/users?tenantId=${tenantId}`, {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                [csrfParameterName]: csrfToken
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load users');
+            }
+            return response.text();
+        })
+        .then(html => {
+            // Extract the table data from the response HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            const nativeUsersTable = doc.querySelector('table:first-of-type tbody');
+            const ssoUsersTable = doc.querySelector('table:nth-of-type(2) tbody');
+
+            let contentHtml = '';
+
+            // Native Users Section
+            contentHtml += '<h3 style="margin-top: 0; color: #333;">Native Users</h3>';
+            contentHtml += '<table class="user-table"><thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Type</th></tr></thead><tbody>';
+
+            if (nativeUsersTable && nativeUsersTable.querySelectorAll('tr').length > 0) {
+                const nativeRows = nativeUsersTable.querySelectorAll('tr');
+                nativeRows.forEach(row => {
+                    if (!row.textContent.includes('No native users found')) {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 4) {
+                            contentHtml += `<tr>
+                                <td>${cells[0].textContent}</td>
+                                <td>${cells[1].textContent}</td>
+                                <td>${cells[2].textContent}</td>
+                                <td><span class="user-badge badge-role">${cells[3].textContent}</span></td>
+                                <td><span class="user-badge badge-local">LOCAL</span></td>
+                            </tr>`;
+                        }
+                    }
+                });
+            } else {
+                contentHtml += '<tr><td colspan="5" class="no-data">No native users found</td></tr>';
+            }
+            contentHtml += '</tbody></table>';
+
+            // SSO Users Section
+            contentHtml += '<h3 style="margin-top: 2rem; color: #333;">SSO Users</h3>';
+            contentHtml += '<table class="user-table"><thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Provider</th><th>Role</th></tr></thead><tbody>';
+
+            if (ssoUsersTable && ssoUsersTable.querySelectorAll('tr').length > 0) {
+                const ssoRows = ssoUsersTable.querySelectorAll('tr');
+                ssoRows.forEach(row => {
+                    if (!row.textContent.includes('No SSO users found')) {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 5) {
+                            contentHtml += `<tr>
+                                <td>${cells[0].textContent}</td>
+                                <td>${cells[1].textContent}</td>
+                                <td>${cells[2].textContent}</td>
+                                <td><span class="user-badge badge-sso">${cells[3].textContent}</span></td>
+                                <td><span class="user-badge badge-role">${cells[4].textContent}</span></td>
+                            </tr>`;
+                        }
+                    }
+                });
+            } else {
+                contentHtml += '<tr><td colspan="5" class="no-data">No SSO users found</td></tr>';
+            }
+            contentHtml += '</tbody></table>';
+
+            modalContent.innerHTML = contentHtml;
+        })
+        .catch(error => {
+            modalContent.innerHTML = `<div class="alert error">Error loading users: ${error.message}</div>`;
+        });
+    }
+
+    function closeViewUsersModal() {
+        const modal = document.getElementById('viewUsersModal');
+        modal.style.display = 'none';
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        const createModal = document.getElementById('createTenantModal');
+        const viewModal = document.getElementById('viewUsersModal');
+        if (event.target == createModal) {
+            closeCreateTenantModal();
+        }
+        if (event.target == viewModal) {
+            closeViewUsersModal();
+        }
+    }
+</script>
 
 </body>
 </html>
