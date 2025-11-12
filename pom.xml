@@ -156,6 +156,7 @@
 
     <!-- ✅ BUILD -->
     <build>
+        <finalName>ssoapp</finalName>
         <plugins>
             <!-- Spring Boot plugin for packaging & running -->
             <plugin>
@@ -183,4 +184,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>
