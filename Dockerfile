@@ -25,17 +25,3 @@ EXPOSE 8080
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-
----
-
-## 3. Create `.dockerignore` File
-
-Create `.dockerignore` in your project root to speed up builds:
-```
-target/
-.mvn/wrapper/maven-wrapper.jar
-.idea/
-*.iml
-.vscode/
-*.log
