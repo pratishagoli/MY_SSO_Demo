@@ -1,10 +1,11 @@
-package com.example.ssoapp.config; // 👈 Note the 'config' package
+package com.example.ssoapp.config;
 
 import com.example.ssoapp.model.SsoConfig;
 import com.example.ssoapp.service.SsoConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.saml2.core.Saml2X509Credential;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistration;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
@@ -18,10 +19,10 @@ import java.security.cert.X509Certificate;
 import java.util.Iterator;
 
 /**
+ * ✅ Production-ready SAML configuration with dynamic base URL
  * Dynamically loads SAML 2.0 Relying Party configurations from the database.
- * This bean is automatically picked up by Spring Security's SAML infrastructure.
  */
-@Component // 👈 This is critical
+@Component
 public class DynamicRelyingPartyRegistrationRepository implements RelyingPartyRegistrationRepository, Iterable<RelyingPartyRegistration> {
 
     private static final Logger logger = LoggerFactory.getLogger(DynamicRelyingPartyRegistrationRepository.class);
@@ -29,7 +30,10 @@ public class DynamicRelyingPartyRegistrationRepository implements RelyingPartyRe
     @Autowired
     private SsoConfigService ssoConfigService;
 
-    // The registrationId we use in our app (from login.html and WebSecurityConfig)
+    // ✅ Inject the base domain URL from application.properties
+    @Value("${app.domain.url}")
+    private String baseUrl;
+
     private static final String DEFAULT_REGISTRATION_ID = "miniorange-saml";
 
     /**
@@ -83,11 +87,11 @@ public class DynamicRelyingPartyRegistrationRepository implements RelyingPartyRe
             // 2. Create the SAML credential
             Saml2X509Credential credential = Saml2X509Credential.verification(idpCertificate);
 
-            // 3. Build the RelyingPartyRegistration
+            // ✅ 3. Build the RelyingPartyRegistration with production base URL
             return RelyingPartyRegistration.withRegistrationId(registrationId)
                     // Our (Service Provider) details
                     .entityId(config.getSpEntityId()) // Use SP Entity ID from DB
-                    .assertionConsumerServiceLocation("{baseUrl}/login/saml2/sso/{registrationId}")
+                    .assertionConsumerServiceLocation(baseUrl + "/login/saml2/sso/{registrationId}")
 
                     // Their (Identity Provider) details
                     .assertingPartyDetails(party -> party

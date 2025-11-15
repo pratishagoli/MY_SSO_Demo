@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * ✅ TenantFilter - Enhanced with better error handling
+ * ✅ TenantFilter - Production-ready with configurable domain
  * Extracts tenant information (subdomain → tenant_id) per request
  * and sets it in TenantContext for multi-tenant isolation.
  */
@@ -28,6 +29,10 @@ public class TenantFilter implements Filter {
     @Autowired
     private TenantRepository tenantRepository;
 
+    // ✅ Make the base domain configurable via application.properties
+    @Value("${app.domain.base:localhost}")
+    private String baseDomain;
+
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -38,23 +43,9 @@ public class TenantFilter implements Filter {
         String requestURI = httpRequest.getRequestURI();
 
         logger.debug("🌍 TenantFilter: host={}, uri={}", serverName, requestURI);
-        // Skip filtering for admin SSO routes when no subdomain
-        if (requestURI.startsWith("/admin/sso") &&
-                (serverName.equals("localhost") || !serverName.contains("."))) {
-            logger.info("⚠️ Skipping tenant filter for SSO config access");
-            chain.doFilter(request, response);
-            return;
-        }
 
-        // ✅ NEW: Skip tenant filtering for SuperAdmin SSO config routes
-        if (requestURI.startsWith("/superadmin") ||
-                (requestURI.startsWith("/admin/sso") && (serverName.equals("localhost") || serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")))) {
-            logger.debug("🧭 Skipping tenant filter for SuperAdmin route: {}", requestURI);
-            chain.doFilter(request, response);
-            return;
-        }
         try {
-            // Extract subdomain (e.g., "pratik" from "pratik.localhost")
+            // Extract subdomain (e.g., "my-sso-demo" from "my-sso-demo.pratisha.cfd")
             String subdomain = extractSubdomain(serverName);
 
             if (subdomain != null && !subdomain.isEmpty()) {
@@ -87,17 +78,17 @@ public class TenantFilter implements Filter {
                     httpResponse.setStatus(HttpServletResponse.SC_NOT_FOUND);
                     httpResponse.setContentType("text/html");
                     httpResponse.getWriter().write(
-                            "<html><body>" +
+                            "<html><body style='font-family: Arial, sans-serif; text-align: center; padding: 50px;'>" +
                                     "<h1>Tenant Not Found</h1>" +
                                     "<p>The subdomain '<strong>" + subdomain + "</strong>' does not exist.</p>" +
                                     "<p>Please check the URL and try again.</p>" +
-                                    "<p><a href='http://localhost:8080/login'>Go to main login</a></p>" +
+                                    "<p><a href='https://" + baseDomain + "/login'>Go to main login</a></p>" +
                                     "</body></html>"
                     );
                     return; // Stop filter chain
                 }
             } else {
-                // ✅ No subdomain (e.g. localhost:8080) → SuperAdmin context
+                // ✅ No subdomain (e.g. pratisha.cfd) → SuperAdmin context
                 TenantContext.clear();
                 logger.debug("🧭 SuperAdmin context (no subdomain)");
             }
@@ -113,11 +104,11 @@ public class TenantFilter implements Filter {
             httpResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             httpResponse.setContentType("text/html");
             httpResponse.getWriter().write(
-                    "<html><body>" +
+                    "<html><body style='font-family: Arial, sans-serif; text-align: center; padding: 50px;'>" +
                             "<h1>Tenant Filter Error</h1>" +
                             "<p>An error occurred while processing your request.</p>" +
                             "<p>Error: " + e.getMessage() + "</p>" +
-                            "<p><a href='http://localhost:8080/login'>Go to main login</a></p>" +
+                            "<p><a href='https://" + baseDomain + "/login'>Go to main login</a></p>" +
                             "</body></html>"
             );
 
@@ -129,33 +120,63 @@ public class TenantFilter implements Filter {
 
     /**
      * Extract subdomain from hostname.
-     * Examples:
+     *
+     * Production Examples:
+     * - my-sso-demo.pratisha.cfd → "my-sso-demo"
+     * - pratisha.cfd → null (SuperAdmin)
+     * - www.pratisha.cfd → null (ignore www prefix)
+     *
+     * Development Examples:
      * - pratik.localhost → "pratik"
      * - localhost → null
-     * - pratik.example.com → "pratik"
      */
     private String extractSubdomain(String serverName) {
         if (serverName == null) {
             return null;
         }
 
-        // Remove port if present (e.g., "pratik.localhost:8080" → "pratik.localhost")
+        // Remove port if present (e.g., "my-sso-demo.pratisha.cfd:8080" → "my-sso-demo.pratisha.cfd")
         if (serverName.contains(":")) {
             serverName = serverName.split(":")[0];
         }
 
-        // Handle localhost or IP addresses
+        // Handle localhost or IP addresses (development mode)
         if (serverName.equalsIgnoreCase("localhost") ||
                 serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
             return null; // No subdomain
         }
 
-        // Split by dot and take first part
+        // ✅ NEW: Check if this is the base domain (no subdomain)
+        if (serverName.equalsIgnoreCase(baseDomain)) {
+            return null; // This is the main domain - SuperAdmin access
+        }
+
+        // ✅ NEW: Check if this is www prefix - treat as base domain
+        if (serverName.equalsIgnoreCase("www." + baseDomain)) {
+            return null; // Redirect www to base domain
+        }
+
+        // ✅ PRODUCTION: Extract subdomain from multi-level domain
+        // For "my-sso-demo.pratisha.cfd", extract "my-sso-demo"
+        if (serverName.endsWith("." + baseDomain)) {
+            String subdomain = serverName.substring(0, serverName.length() - baseDomain.length() - 1);
+
+            // Validate subdomain format (alphanumeric and hyphens only)
+            if (subdomain.matches("^[a-z0-9-]+$")) {
+                return subdomain.toLowerCase();
+            } else {
+                logger.warn("Invalid subdomain format: {}", subdomain);
+                return null;
+            }
+        }
+
+        // ✅ DEVELOPMENT: Handle simple localhost subdomains
+        // For "pratik.localhost", extract "pratik"
         String[] parts = serverName.split("\\.");
         if (parts.length >= 2) {
             String potential = parts[0];
             // Validate it's not "www" or other common prefixes
-            if (!potential.equalsIgnoreCase("www")) {
+            if (!potential.equalsIgnoreCase("www") && potential.matches("^[a-z0-9-]+$")) {
                 return potential.toLowerCase();
             }
         }
