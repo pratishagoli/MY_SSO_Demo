@@ -50,7 +50,13 @@ public class SuperAdminController {
     // ============================================================
     @GetMapping("/dashboard")
     public String showDashboard(Model model, @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("SuperAdmin dashboard accessed by: {}", userDetails != null ? userDetails.getUsername() : "unknown");
+        logger.info("✅ SuperAdmin dashboard accessed by: {}",
+                userDetails != null ? userDetails.getUsername() : "unknown");
+
+        // Log authorities for debugging
+        if (userDetails != null) {
+            logger.info("🔐 User authorities: {}", userDetails.getAuthorities());
+        }
 
         List<TenantMinimalDTO> tenants = tenantService.findAllTenantMinimal();
         model.addAttribute("tenants", tenants);
@@ -64,6 +70,7 @@ public class SuperAdminController {
         }
         return "superadmin-dashboard";
     }
+
 
     // ============================================================
     // ✅ 2. VIEW USERS FOR A SPECIFIC TENANT (FIXED VERSION)

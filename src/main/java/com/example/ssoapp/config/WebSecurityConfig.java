@@ -79,31 +79,38 @@ public class WebSecurityConfig {
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
 
                 .authorizeHttpRequests(auth -> auth
+                        // Public routes
                         .requestMatchers("/", "/login", "/signup", "/register-user", "/error").permitAll()
                         .requestMatchers("/api/auth/**", "/oauth2/**", "/api/secret/**").permitAll()
                         .requestMatchers("/static/**", "/css/**", "/js/**").permitAll()
                         .requestMatchers("/auth/jwt/callback", "/jwt/callback").permitAll()
-                        .requestMatchers("/sso/saml/**").permitAll() // allow SAML endpoints
-                        .requestMatchers("/login/saml2/**").permitAll() // allow SAML SSO endpoints
-                        .requestMatchers("/saml2/**").permitAll() // allow SAML2 endpoints
+                        .requestMatchers("/sso/saml/**").permitAll()
+                        .requestMatchers("/login/saml2/**").permitAll()
+                        .requestMatchers("/saml2/**").permitAll()
 
-                        // 🚀 NEW: SuperAdmin route protection
+                        // ✅ SUPERADMIN ROUTES - MUST BE FIRST!
+                        // Use hasAuthority with full prefix "ROLE_SUPERADMIN"
                         .requestMatchers("/superadmin/**").hasAuthority("ROLE_SUPERADMIN")
 
-                        // 🔄 MODIFIED: Admin routes now explicitly map to TENANT_ADMIN,
-                        // or we stick to the general 'ADMIN' authority if the client needs it.
-                        // I will use ROLE_TENANT_ADMIN for clarity, assuming old 'ADMIN' maps to the new 'TENANT_ADMIN'.
-                        .requestMatchers(HttpMethod.PUT, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/superadmin-dashboard").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/config").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/config/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/test/attributes").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN") // Test results page requires admin
+                        // ✅ TENANT ADMIN ROUTES
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/users/**")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admindashboard")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/config")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/config/**")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/test/attributes")
+                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
 
-                        // Existing public test/callback routes
-                        .requestMatchers("/admin/sso/test/jwt/callback").permitAll() // Allow JWT test callback
-                        .requestMatchers("/admin/sso/test/**").permitAll() // Allow test flow endpoints during SSO
+                        // Test/callback routes (public during testing)
+                        .requestMatchers("/admin/sso/test/jwt/callback").permitAll()
+                        .requestMatchers("/admin/sso/test/**").permitAll()
 
+                        // All other routes require authentication
                         .anyRequest().authenticated()
                 )
 
