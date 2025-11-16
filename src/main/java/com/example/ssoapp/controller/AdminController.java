@@ -29,6 +29,10 @@ public class AdminController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    public AdminController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
     // Helper method to safely convert String role to Role Enum
     private Role getRoleFromString(String roleString) {
         if (roleString == null) {

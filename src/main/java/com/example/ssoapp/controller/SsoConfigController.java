@@ -2,14 +2,11 @@ package com.example.ssoapp.controller;
 
 import com.example.ssoapp.model.SsoConfig;
 import com.example.ssoapp.service.SsoConfigService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,22 +20,28 @@ public class SsoConfigController {
 
     private static final Logger logger = LoggerFactory.getLogger(SsoConfigController.class);
 
-    @Autowired
-    private SsoConfigService ssoConfigService;
+    private final SsoConfigService ssoConfigService;
 
-    // ✅ Inject base URL from config
-    @Value("${app.domain.url}")
-    private String baseUrl;
+    // Constructor injection instead of @Autowired
+    public SsoConfigController(SsoConfigService ssoConfigService) {
+        this.ssoConfigService = ssoConfigService;
+    }
 
     @GetMapping("/config")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
     public String ssoConfigPage(Model model) {
-        model.addAttribute("ssoConfigs", ssoConfigService.getAllSsoConfigs());
-        return "ssoconfig";
+        try {
+            model.addAttribute("ssoConfigs", ssoConfigService.getAllSsoConfigs());
+            return "ssoconfig";
+        } catch (Exception e) {
+            logger.error("Error loading SSO config page: {}", e.getMessage(), e);
+            model.addAttribute("error", "Failed to load SSO configuration");
+            return "error";
+        }
     }
 
     @PutMapping("/config/{ssoType}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
     @ResponseBody
     public ResponseEntity<?> updateSsoConfig(@PathVariable String ssoType, @RequestBody Map<String, Boolean> request) {
         try {
@@ -50,70 +53,71 @@ public class SsoConfigController {
             SsoConfig updated = ssoConfigService.updateSsoConfig(ssoType.toUpperCase(), enabled);
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
+            logger.error("Error updating SSO config: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body("Failed to update SSO config: " + e.getMessage());
         }
     }
 
     @GetMapping("/config/{ssoType}/details")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> getSsoConfigDetails(@PathVariable String ssoType, HttpServletRequest request) {
-        String type = ssoType.toUpperCase();
-        SsoConfig config = ssoConfigService.getSsoConfigByType(type);
-        Map<String, String> configMap = new HashMap<>();
+    public ResponseEntity<Map<String, String>> getSsoConfigDetails(@PathVariable String ssoType) {
+        try {
+            String type = ssoType.toUpperCase();
+            SsoConfig config = ssoConfigService.getSsoConfigByType(type);
 
-        // ✅ Determine the current subdomain/domain
-        String currentHost = request.getServerName();
-        String currentUrl = request.getScheme() + "://" + currentHost;
+            if (config == null) {
+                return ResponseEntity.notFound().build();
+            }
 
-        // Common properties
-        configMap.put("ssoType", type);
-        configMap.put("status", config.getEnabled() ? "Enabled" : "Disabled");
-        configMap.put("provider", "MiniOrange");
+            Map<String, String> configMap = new HashMap<>();
 
-        // Read properties from database
-        switch (type) {
-            case "JWT":
-                configMap.put("protocol", "JWT (JSON Web Token)");
-                configMap.put("clientId", config.getClientId());
-                configMap.put("issuerUri", config.getIssuerUri());
-                // ✅ Use current host for redirect URI
-                configMap.put("redirectUri", currentUrl + "/auth/jwt/callback");
-                configMap.put("loginUrl", config.getConfigUrl());
-                break;
+            // Common properties
+            configMap.put("ssoType", type);
+            configMap.put("status", config.getEnabled() ? "Enabled" : "Disabled");
+            configMap.put("provider", "MiniOrange");
 
-            case "OIDC":
-                configMap.put("protocol", "OIDC (OpenID Connect)");
-                configMap.put("clientId", config.getClientId());
-                configMap.put("clientSecret", config.getClientSecret());
-                configMap.put("scope", "openid,profile,email");
-                configMap.put("issuerUri", config.getIssuerUri());
-                // ✅ Use current host for redirect URI
-                configMap.put("redirectUri", currentUrl + "/login/oauth2/code/miniorange");
-                configMap.put("grantType", "authorization_code");
-                break;
+            // Read properties from database
+            switch (type) {
+                case "JWT":
+                    configMap.put("protocol", "JWT (JSON Web Token)");
+                    configMap.put("clientId", config.getClientId() != null ? config.getClientId() : "");
+                    configMap.put("issuerUri", config.getIssuerUri() != null ? config.getIssuerUri() : "");
+                    configMap.put("redirectUri", "http://localhost:8080/auth/jwt/callback");
+                    configMap.put("loginUrl", "https://pratisha.xecurify.com/moas/idp/jwtsso/379428");
+                    break;
+                case "OIDC":
+                    configMap.put("protocol", "OIDC (OpenID Connect)");
+                    configMap.put("clientId", config.getClientId() != null ? config.getClientId() : "");
+                    configMap.put("clientSecret", config.getClientSecret() != null ? config.getClientSecret() : "");
+                    configMap.put("scope", "openid,profile,email");
+                    configMap.put("issuerUri", config.getIssuerUri() != null ? config.getIssuerUri() : "");
+                    configMap.put("grantType", "authorization_code");
+                    configMap.put("redirectUri", "http://localhost:8080/login/oauth2/code/miniorange");
+                    break;
+                case "SAML":
+                    configMap.put("protocol", "SAML 2.0");
+                    configMap.put("entityId", config.getSpEntityId() != null ? config.getSpEntityId() : "");
+                    configMap.put("metadataUrl", config.getConfigUrl() != null ? config.getConfigUrl() : "");
+                    configMap.put("ssoServiceUrl", config.getIdpSsoUrl() != null ? config.getIdpSsoUrl() : "");
+                    configMap.put("idpEntityId", config.getIdpEntityId() != null ? config.getIdpEntityId() : "");
+                    configMap.put("idpCertificateContent", config.getIdpCertificateContent() != null ? config.getIdpCertificateContent() : "");
+                    configMap.put("acsUrl", "http://localhost:8080/login/saml2/sso/miniorange-saml");
+                    configMap.put("nameIdFormat", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
+                    break;
+                default:
+                    return ResponseEntity.badRequest().build();
+            }
 
-            case "SAML":
-                configMap.put("protocol", "SAML 2.0");
-                configMap.put("entityId", config.getSpEntityId());
-                configMap.put("metadataUrl", config.getConfigUrl());
-                configMap.put("ssoServiceUrl", config.getIdpSsoUrl());
-                configMap.put("idpEntityId", config.getIdpEntityId());
-                configMap.put("idpCertificateContent", config.getIdpCertificateContent());
-                // ✅ Use current host for ACS URL
-                configMap.put("acsUrl", currentUrl + "/login/saml2/sso/miniorange-saml");
-                configMap.put("nameIdFormat", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
-                break;
-
-            default:
-                return ResponseEntity.badRequest().build();
+            return ResponseEntity.ok(configMap);
+        } catch (Exception e) {
+            logger.error("Error getting SSO config details: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
         }
-
-        return ResponseEntity.ok(configMap);
     }
 
     @PutMapping("/config/{ssoType}/update")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
     @ResponseBody
     public ResponseEntity<?> updateSsoConfigDetails(@PathVariable String ssoType, @RequestBody Map<String, String> details) {
         try {
@@ -126,8 +130,8 @@ public class SsoConfigController {
     }
 
     @GetMapping("/test/{ssoType}")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public String testSso(@PathVariable String ssoType, HttpServletRequest request) {
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
+    public String testSso(@PathVariable String ssoType, jakarta.servlet.http.HttpServletRequest request) {
         String type = ssoType.toUpperCase();
 
         // Store admin session before test
@@ -137,12 +141,9 @@ public class SsoConfigController {
         request.getSession().setAttribute("sso_test_mode", true);
         request.getSession().setAttribute("sso_test_type", type);
 
-        // ✅ Use dynamic URLs based on current host
-        String currentUrl = request.getScheme() + "://" + request.getServerName();
-
         switch (type) {
             case "JWT":
-                return "redirect:https://pratisha.xecurify.com/moas/idp/jwtsso/379428?client_id=4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f&redirect_uri=" + currentUrl + "/auth/jwt/callback";
+                return "redirect:https://pratisha.xecurify.com/moas/idp/jwtsso/379428?client_id=4rIAZPjSTgKGuylgQvCNenKqZRkHOC6f&redirect_uri=http://localhost:8080/auth/jwt/callback";
             case "OIDC":
                 return "redirect:/oauth2/authorization/miniorange";
             case "SAML":
@@ -153,12 +154,15 @@ public class SsoConfigController {
     }
 
     @GetMapping("/test/jwt/callback")
-    public String jwtTestCallback(@RequestParam("id_token") String jwt, HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+    public String jwtTestCallback(@RequestParam("id_token") String jwt,
+                                  jakarta.servlet.http.HttpServletRequest request,
+                                  jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
         Map<String, Object> testResult = new HashMap<>();
         Map<String, Object> attributes = new HashMap<>();
         String testStatus = "success";
 
         try {
+            // Basic JWT decoding (without verification for test purposes)
             String[] parts = jwt.split("\\.");
             if (parts.length >= 2) {
                 String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
@@ -176,6 +180,8 @@ public class SsoConfigController {
         testResult.put("attributes", attributes);
 
         request.getSession().setAttribute("sso_test_result", testResult);
+
+        // Restore admin session
         restoreAdminSession(request);
 
         response.sendRedirect("/admin/sso/config?test=success");
@@ -184,49 +190,64 @@ public class SsoConfigController {
 
     @GetMapping("/test/result")
     @ResponseBody
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Map<String, Object>> getTestResult(HttpServletRequest request) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) request.getSession().getAttribute("sso_test_result");
-        if (result != null) {
-            String assertionJson = (String) request.getSession().getAttribute("saml_assertion_to_store");
-            if (assertionJson != null && "SAML".equals(result.get("testType"))) {
-                String status = (String) result.get("testStatus");
-                ssoConfigService.storeTestResult("SAML", assertionJson, status);
-                request.getSession().removeAttribute("saml_assertion_to_store");
+    @PreAuthorize("hasAuthority('ROLE_TENANT_ADMIN') or hasAuthority('ROLE_SUPERADMIN')")
+    public ResponseEntity<Map<String, Object>> getTestResult(jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) request.getSession().getAttribute("sso_test_result");
+
+            if (result != null) {
+                // Store SAML assertion in DB if available
+                String assertionJson = (String) request.getSession().getAttribute("saml_assertion_to_store");
+                if (assertionJson != null && "SAML".equals(result.get("testType"))) {
+                    String status = (String) result.get("testStatus");
+                    ssoConfigService.storeTestResult("SAML", assertionJson, status);
+                    request.getSession().removeAttribute("saml_assertion_to_store");
+                }
+
+                request.getSession().removeAttribute("sso_test_result");
+                return ResponseEntity.ok(result);
             }
-
-            request.getSession().removeAttribute("sso_test_result");
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.ok(new HashMap<>());
-    }
-
-    private void storeAdminSession(HttpServletRequest request) {
-        org.springframework.security.core.Authentication auth =
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated()) {
-            request.getSession().setAttribute("admin_test_principal", auth);
-            request.getSession().setAttribute("admin_test_authorities", auth.getAuthorities());
+            return ResponseEntity.ok(new HashMap<>());
+        } catch (Exception e) {
+            logger.error("Error getting test result: {}", e.getMessage(), e);
+            return ResponseEntity.ok(new HashMap<>());
         }
     }
 
-    private void restoreAdminSession(HttpServletRequest request) {
-        org.springframework.security.core.Authentication adminAuth =
-                (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
-        if (adminAuth != null) {
-            org.springframework.security.core.context.SecurityContext securityContext =
-                    org.springframework.security.core.context.SecurityContextHolder.getContext();
-            securityContext.setAuthentication(adminAuth);
+    private void storeAdminSession(jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated()) {
+                request.getSession().setAttribute("admin_test_principal", auth);
+                request.getSession().setAttribute("admin_test_authorities", auth.getAuthorities());
+            }
+        } catch (Exception e) {
+            logger.error("Error storing admin session: {}", e.getMessage(), e);
+        }
+    }
 
-            jakarta.servlet.http.HttpSession session = request.getSession();
-            session.setAttribute(
-                    org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                    securityContext
-            );
+    private void restoreAdminSession(jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            org.springframework.security.core.Authentication adminAuth =
+                    (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
+            if (adminAuth != null) {
+                org.springframework.security.core.context.SecurityContext securityContext =
+                        org.springframework.security.core.context.SecurityContextHolder.getContext();
+                securityContext.setAuthentication(adminAuth);
 
-            request.getSession().removeAttribute("admin_test_principal");
-            request.getSession().removeAttribute("admin_test_authorities");
+                jakarta.servlet.http.HttpSession session = request.getSession();
+                session.setAttribute(
+                        org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                        securityContext
+                );
+
+                request.getSession().removeAttribute("admin_test_principal");
+                request.getSession().removeAttribute("admin_test_authorities");
+            }
+        } catch (Exception e) {
+            logger.error("Error restoring admin session: {}", e.getMessage(), e);
         }
     }
 }

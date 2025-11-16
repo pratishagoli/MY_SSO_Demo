@@ -44,7 +44,10 @@ public class SuperAdminController {
 
     @PersistenceContext
     private EntityManager entityManager;
-
+    public SuperAdminController(TenantService tenantService, UserRepository userRepository) {
+        this.tenantService = tenantService;
+        this.userRepository = userRepository;
+    }
     // ============================================================
     // ✅ 1. SUPERADMIN DASHBOARD
     // ============================================================

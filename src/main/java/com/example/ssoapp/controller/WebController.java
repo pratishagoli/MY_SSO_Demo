@@ -52,6 +52,14 @@ public class WebController {
      * Root route handler - redirects authenticated users to dashboard,
      * unauthenticated users to login page.
      */
+    public WebController(UserRepository userRepository,
+                         PasswordEncoder passwordEncoder,
+                         SsoConfigService ssoConfigService) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.ssoConfigService = ssoConfigService;
+    }
+
     @GetMapping("/")
     public String homePage() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

@@ -37,6 +37,10 @@ public class JwtController {
     @Autowired
     private UserRepository userRepository;
 
+    public JwtController(JwtValidationService jwtValidationService, UserRepository userRepository) {
+        this.jwtValidationService = jwtValidationService;
+        this.userRepository = userRepository;
+    }
     @GetMapping("callback") // Use the actual callback path
     public void handleJwtCallback(@RequestParam("id_token") String jwt, // Or however you receive the token
                                   HttpServletRequest request,

@@ -22,6 +22,9 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+    public  AuthController(AuthService authService){
+        this.authService=authService;
+    }
     /**
      * Endpoint for local user signup
      */
