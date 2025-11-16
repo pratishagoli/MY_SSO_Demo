@@ -1,6 +1,5 @@
 package com.example.ssoapp.config;
 
-import com.example.ssoapp.config.TenantFilter; // Use the simple string-based filter
 import com.example.ssoapp.security.jwt.JwtAuthenticationFilter;
 import com.example.ssoapp.security.jwt.JwtAuthenticationSuccessHandler;
 import com.example.ssoapp.security.saml.SamlAuthSuccessHandler;
@@ -12,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -31,7 +31,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
 
 import java.io.IOException;
 
@@ -39,47 +38,48 @@ import java.io.IOException;
 @EnableWebSecurity
 public class WebSecurityConfig {
 
-    @Autowired
-    private CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final TenantFilter tenantFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationSuccessHandler jwtAuthenticationSuccessHandler;
+    private final SamlAuthSuccessHandler samlAuthSuccessHandler;
+    private final UserDetailsServiceImpl userDetailsService;
 
+    // Use @Lazy to break circular dependency
     @Autowired
-    private TenantFilter tenantFilter; // Already existed, now fully integrated
+    public WebSecurityConfig(
+            CustomOAuth2UserService customOAuth2UserService,
+            TenantFilter tenantFilter,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            JwtAuthenticationSuccessHandler jwtAuthenticationSuccessHandler,
+            SamlAuthSuccessHandler samlAuthSuccessHandler,
+            UserDetailsServiceImpl userDetailsService) {
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.tenantFilter = tenantFilter;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.jwtAuthenticationSuccessHandler = jwtAuthenticationSuccessHandler;
+        this.samlAuthSuccessHandler = samlAuthSuccessHandler;
+        this.userDetailsService = userDetailsService;
+    }
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Autowired
-    private JwtAuthenticationSuccessHandler jwtAuthenticationSuccessHandler;
-
-    @Autowired
-    private SamlAuthSuccessHandler samlAuthSuccessHandler;
-
-    @Autowired
-    private UserDetailsServiceImpl userDetailsService;
-
-    // ========================
-    // PASSWORD ENCODER
-    // ========================
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // ========================
-    // MAIN SECURITY CONFIG
-    // ========================
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,RelyingPartyRegistrationRepository relyingPartyRegistrationRepository, OpenSaml4AuthenticationProvider samlAuthenticationProvider) throws Exception {
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            @Lazy RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
+            OpenSaml4AuthenticationProvider samlAuthenticationProvider) throws Exception {
 
-        // 🚀 NEW: Add TenantFilter before the standard authentication filter
-        // This MUST happen early to set the tenant context for UserDetailsServiceImpl
+        // Add TenantFilter before the standard authentication filter
         http.addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);
 
         http
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
 
                 .authorizeHttpRequests(auth -> auth
-                        // Public routes
                         .requestMatchers("/", "/login", "/signup", "/register-user", "/error").permitAll()
                         .requestMatchers("/api/auth/**", "/oauth2/**", "/api/secret/**").permitAll()
                         .requestMatchers("/static/**", "/css/**", "/js/**").permitAll()
@@ -88,33 +88,24 @@ public class WebSecurityConfig {
                         .requestMatchers("/login/saml2/**").permitAll()
                         .requestMatchers("/saml2/**").permitAll()
 
-                        // ✅ SUPERADMIN ROUTES - MUST BE FIRST!
-                        // Use hasAuthority with full prefix "ROLE_SUPERADMIN"
+                        // SuperAdmin routes
                         .requestMatchers("/superadmin/**").hasAuthority("ROLE_SUPERADMIN")
 
-                        // ✅ TENANT ADMIN ROUTES
-                        .requestMatchers(HttpMethod.PUT, "/api/admin/users/**")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admindashboard")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/config")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/config/**")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/admin/sso/test/attributes")
-                        .hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        // Admin routes
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/superadmin-dashboard").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/config").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/config/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        .requestMatchers("/admin/sso/test/attributes").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
 
-                        // Test/callback routes (public during testing)
+                        // Public test/callback routes
                         .requestMatchers("/admin/sso/test/jwt/callback").permitAll()
                         .requestMatchers("/admin/sso/test/**").permitAll()
 
-                        // All other routes require authentication
                         .anyRequest().authenticated()
                 )
 
-                // Allow sessions for SSO-based logins
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .invalidSessionUrl("/login?error=session_expired")
@@ -122,7 +113,7 @@ public class WebSecurityConfig {
                         .maxSessionsPreventsLogin(false)
                 )
 
-                // ---------- FORM LOGIN ----------
+                // Form login
                 .formLogin(form -> form
                         .loginPage("/login")
                         .successHandler(jwtAuthenticationSuccessHandler)
@@ -132,8 +123,7 @@ public class WebSecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 .authenticationProvider(samlAuthenticationProvider)
 
-
-                // ---------- OAUTH2 / OPENID ----------
+                // OAuth2 / OIDC
                 .oauth2Login(oauth2 -> oauth2
                         .loginPage("/login")
                         .userInfoEndpoint(userInfo -> {
@@ -141,11 +131,9 @@ public class WebSecurityConfig {
                             userInfo.oidcUserService(oidcUserService());
                         })
                         .successHandler((request, response, authentication) -> {
-                            // Check if this is a test flow from session
                             Boolean testMode = (Boolean) request.getSession().getAttribute("sso_test_mode");
                             String testType = (String) request.getSession().getAttribute("sso_test_type");
                             if (Boolean.TRUE.equals(testMode) && "OIDC".equals(testType)) {
-                                // Store OAuth attributes for modal popup
                                 java.util.Map<String, Object> testResult = new java.util.HashMap<>();
                                 testResult.put("testType", "OIDC");
                                 testResult.put("testStatus", "success");
@@ -160,9 +148,7 @@ public class WebSecurityConfig {
                                 request.getSession().removeAttribute("sso_test_mode");
                                 request.getSession().removeAttribute("sso_test_type");
 
-                                // Restore admin session
                                 restoreAdminSessionForTest(request, authentication);
-
                                 response.sendRedirect("/admin/sso/config?test=success");
                             } else {
                                 response.sendRedirect("/dashboard");
@@ -170,37 +156,32 @@ public class WebSecurityConfig {
                         })
                 )
 
-                // ---------- SAML2 LOGIN ----------
+                // SAML2 login
                 .saml2Login(saml2 -> saml2
-                                .loginPage("/login")
-                                .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository) // 👈 TELL SPRING TO USE IT
-
-                                .successHandler((request, response, authentication) -> {
-                                    org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Login");
-                                    logger.info("=== SAML2 LOGIN SUCCESS HANDLER INVOKED ===");
-                                    logger.info("Request URI: {}", request.getRequestURI());
-                                    logger.info("Principal type: {}", authentication.getPrincipal().getClass().getName());
-                                    // Call custom handler
-                                    samlAuthSuccessHandler.onAuthenticationSuccess(request, response, authentication);
-                                })
-                                .failureHandler(new SimpleUrlAuthenticationFailureHandler("/login?error=saml_failed") {
-                                    @Override
-                                    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
-                                        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Failure");
-                                        logger.error("!!!!!!!!!!!!!!!!! SAML AUTHENTICATION FAILED !!!!!!!!!!!!!!!!!");
-                                        // This logs the high-level reason, e.g., "Invalid signature"
-                                        logger.error("Failure Message: {}", exception.getMessage());
-                                        // This logs the underlying technical reason
-                                        logger.error("Exception Cause: ", exception.getCause());
-                                        logger.error("Full Exception: ", exception);
-                                        logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-//                                super.onAuthenticationFailure(request, response, exception);
-                                    }
-                                })
-                                .defaultSuccessUrl("/dashboard", true)
+                        .loginPage("/login")
+                        .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository)
+                        .successHandler((request, response, authentication) -> {
+                            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Login");
+                            logger.info("=== SAML2 LOGIN SUCCESS HANDLER INVOKED ===");
+                            logger.info("Request URI: {}", request.getRequestURI());
+                            logger.info("Principal type: {}", authentication.getPrincipal().getClass().getName());
+                            samlAuthSuccessHandler.onAuthenticationSuccess(request, response, authentication);
+                        })
+                        .failureHandler(new SimpleUrlAuthenticationFailureHandler("/login?error=saml_failed") {
+                            @Override
+                            public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+                                org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAML2Failure");
+                                logger.error("!!!!!!!!!!!!!!!!! SAML AUTHENTICATION FAILED !!!!!!!!!!!!!!!!!");
+                                logger.error("Failure Message: {}", exception.getMessage());
+                                logger.error("Exception Cause: ", exception.getCause());
+                                logger.error("Full Exception: ", exception);
+                                logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                            }
+                        })
+                        .defaultSuccessUrl("/dashboard", true)
                 )
 
-                // ---------- LOGOUT ----------
+                // Logout
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/login?logout")
@@ -208,23 +189,19 @@ public class WebSecurityConfig {
                         .deleteCookies("JSESSIONID", "AUTH_TOKEN")
                 )
 
-                // ---------- EXCEPTION HANDLING ----------
+                // Exception handling
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
-                            // Redirect to login page on authentication failure or expired session
                             response.sendRedirect("/login?error=session_expired");
                         })
                 );
 
-        // Add JWT filter before UsernamePasswordAuthenticationFilter (Existing logic)
+        // Add JWT filter
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ========================
-    // OIDC SERVICE FOR OAUTH
-    // ========================
     @Bean
     public OAuth2UserService<org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest, OidcUser> oidcUserService() {
         final OidcUserService delegate = new OidcUserService();
@@ -236,16 +213,10 @@ public class WebSecurityConfig {
         };
     }
 
-    // ========================
-    // SAML CONFIGURATION
-    // ========================
-
-
     @Bean
     public OpenSaml4AuthenticationProvider samlAuthenticationProvider() {
         OpenSaml4AuthenticationProvider provider = new OpenSaml4AuthenticationProvider();
 
-        // Custom response converter with enhanced logging
         provider.setResponseAuthenticationConverter(responseToken -> {
             org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger("SAMLResponseConverter");
             logger.info("=== PROCESSING SAML RESPONSE ===");
@@ -254,7 +225,6 @@ public class WebSecurityConfig {
             logger.info("Destination: {}", responseToken.getResponse().getDestination());
 
             try {
-                // Use default converter
                 var authResult = OpenSaml4AuthenticationProvider.createDefaultResponseAuthenticationConverter()
                         .convert(responseToken);
 
@@ -272,9 +242,6 @@ public class WebSecurityConfig {
         return provider;
     }
 
-    // ========================
-    // AUTHENTICATION PROVIDER FOR FORM LOGIN
-    // ========================
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -289,7 +256,6 @@ public class WebSecurityConfig {
     }
 
     private void restoreAdminSessionForTest(jakarta.servlet.http.HttpServletRequest request, org.springframework.security.core.Authentication testAuth) {
-        // Restore admin authentication after test
         org.springframework.security.core.Authentication adminAuth =
                 (org.springframework.security.core.Authentication) request.getSession().getAttribute("admin_test_principal");
         if (adminAuth != null) {

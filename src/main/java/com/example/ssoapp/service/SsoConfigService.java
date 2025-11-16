@@ -5,38 +5,45 @@ import com.example.ssoapp.model.SsoConfig;
 import com.example.ssoapp.repository.SsoConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class SsoConfigService {
     private static final Logger logger = LoggerFactory.getLogger(SsoConfigService.class);
 
-    @Autowired
-    private SsoConfigRepository ssoConfigRepository;
+    private final SsoConfigRepository ssoConfigRepository;
+
+    public SsoConfigService(SsoConfigRepository ssoConfigRepository) {
+        this.ssoConfigRepository = ssoConfigRepository;
+    }
 
     /**
      * Get SSO config for current tenant (or global if SuperAdmin)
+     * Returns null if no tenant context or config not found
      */
     public SsoConfig getSsoConfigByType(String ssoType) {
-        Long tenantId = TenantContext.getTenantIdAsLong();
+        try {
+            Long tenantId = TenantContext.getTenantIdAsLong();
 
-        if (tenantId != null) {
-            // Tenant-specific lookup
-            logger.debug("Looking up {} SSO config for tenant: {}", ssoType, tenantId);
-            return ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType)
-                    .orElse(null);
-        } else {
-            // ✅ NEW: SuperAdmin context - lookup global configs
-            logger.debug("SuperAdmin context - looking up global SSO config");
-            return ssoConfigRepository.findByTenantIdIsNullAndSsoType(ssoType)
-                    .orElse(null);
+            if (tenantId != null) {
+                // Tenant-specific lookup
+                logger.debug("Looking up {} SSO config for tenant: {}", ssoType, tenantId);
+                return ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType)
+                        .orElse(null);
+            } else {
+                // SuperAdmin context - no SSO configs
+                logger.debug("SuperAdmin context - no SSO configs available");
+                return null;
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching SSO config for type {}: {}", ssoType, e.getMessage(), e);
+            return null;
         }
     }
 
@@ -44,24 +51,32 @@ public class SsoConfigService {
      * Check if SSO is enabled for current tenant
      */
     public boolean isSsoEnabled(String ssoType) {
-        SsoConfig config = getSsoConfigByType(ssoType);
-        return config != null && config.getEnabled();
+        try {
+            SsoConfig config = getSsoConfigByType(ssoType);
+            return config != null && config.getEnabled();
+        } catch (Exception e) {
+            logger.error("Error checking if SSO is enabled: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
      * Get all SSO configs for current tenant
      */
     public List<SsoConfig> getAllSsoConfigs() {
-        Long tenantId = TenantContext.getTenantIdAsLong();
+        try {
+            Long tenantId = TenantContext.getTenantIdAsLong();
 
-        if (tenantId != null) {
-            return ssoConfigRepository.findByTenantId(tenantId);
-        } else {
-            // ✅ NEW: SuperAdmin - return global configs
-            logger.debug("SuperAdmin context - fetching global SSO configs");
-            return ssoConfigRepository.findAll().stream()
-                    .filter(config -> config.getTenantId() == null)
-                    .collect(Collectors.toList());
+            if (tenantId != null) {
+                return ssoConfigRepository.findByTenantId(tenantId);
+            } else {
+                // SuperAdmin - return empty list
+                logger.debug("SuperAdmin context - returning empty SSO config list");
+                return new ArrayList<>();
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching all SSO configs: {}", e.getMessage(), e);
+            return new ArrayList<>();
         }
     }
 
@@ -70,17 +85,22 @@ public class SsoConfigService {
      */
     @Transactional
     public void initializeDefaultConfigsForTenant(Long tenantId) {
-        logger.info("Initializing default SSO configs for tenant: {}", tenantId);
+        try {
+            logger.info("Initializing default SSO configs for tenant: {}", tenantId);
 
-        String[] ssoTypes = {"JWT", "OIDC", "SAML"};
-        for (String ssoType : ssoTypes) {
-            Optional<SsoConfig> existing = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
+            String[] ssoTypes = {"JWT", "OIDC", "SAML"};
+            for (String ssoType : ssoTypes) {
+                Optional<SsoConfig> existing = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
 
-            if (existing.isEmpty()) {
-                SsoConfig config = new SsoConfig(tenantId, ssoType, false); // Disabled by default
-                ssoConfigRepository.save(config);
-                logger.info("Created default {} config for tenant {}", ssoType, tenantId);
+                if (existing.isEmpty()) {
+                    SsoConfig config = new SsoConfig(tenantId, ssoType, false); // Disabled by default
+                    ssoConfigRepository.save(config);
+                    logger.info("Created default {} config for tenant {}", ssoType, tenantId);
+                }
             }
+        } catch (Exception e) {
+            logger.error("Error initializing default SSO configs for tenant {}: {}", tenantId, e.getMessage(), e);
+            throw new RuntimeException("Failed to initialize SSO configs", e);
         }
     }
 
@@ -125,7 +145,7 @@ public class SsoConfigService {
 
         logger.info("Updating configuration details for tenant {} - {}", tenantId, ssoType);
 
-        // Update fields (same as before)
+        // Update fields
         if (details.containsKey("configUrl")) config.setConfigUrl(details.get("configUrl"));
         if (details.containsKey("verificationCertificate")) config.setVerificationCertificate(details.get("verificationCertificate"));
         if (details.containsKey("signingKey")) config.setSigningKey(details.get("signingKey"));
@@ -145,16 +165,20 @@ public class SsoConfigService {
      */
     @Transactional
     public void storeTestResult(String ssoType, String assertion, String status) {
-        Long tenantId = TenantContext.getTenantIdAsLong();
-        if (tenantId != null) {
-            Optional<SsoConfig> configOpt = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
-            if (configOpt.isPresent()) {
-                SsoConfig config = configOpt.get();
-                config.setLastAssertion(assertion);
-                config.setLastTestStatus(status);
-                ssoConfigRepository.save(config);
-                logger.info("Stored test result for tenant {} - {}: status={}", tenantId, ssoType, status);
+        try {
+            Long tenantId = TenantContext.getTenantIdAsLong();
+            if (tenantId != null) {
+                Optional<SsoConfig> configOpt = ssoConfigRepository.findByTenantIdAndSsoType(tenantId, ssoType);
+                if (configOpt.isPresent()) {
+                    SsoConfig config = configOpt.get();
+                    config.setLastAssertion(assertion);
+                    config.setLastTestStatus(status);
+                    ssoConfigRepository.save(config);
+                    logger.info("Stored test result for tenant {} - {}: status={}", tenantId, ssoType, status);
+                }
             }
+        } catch (Exception e) {
+            logger.error("Error storing test result: {}", e.getMessage(), e);
         }
     }
 }
