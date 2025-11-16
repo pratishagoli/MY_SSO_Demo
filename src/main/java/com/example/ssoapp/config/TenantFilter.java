@@ -16,12 +16,12 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * ✅ TenantFilter - Production-ready with configurable domain
+ * ✅ TenantFilter - Enhanced with production domain support
  * Extracts tenant information (subdomain → tenant_id) per request
  * and sets it in TenantContext for multi-tenant isolation.
  */
 @Component
-@Order(1) // Ensures it runs before Spring Security filters
+@Order(1)
 public class TenantFilter implements Filter {
 
     private static final Logger logger = LoggerFactory.getLogger(TenantFilter.class);
@@ -29,8 +29,8 @@ public class TenantFilter implements Filter {
     @Autowired
     private TenantRepository tenantRepository;
 
-    // ✅ Make the base domain configurable via application.properties
-    @Value("${app.domain.base:localhost}")
+    // Base domain configuration - can be set in application.properties
+    @Value("${app.base-domain:localhost}")
     private String baseDomain;
 
     @Override
@@ -45,7 +45,7 @@ public class TenantFilter implements Filter {
         logger.debug("🌍 TenantFilter: host={}, uri={}", serverName, requestURI);
 
         try {
-            // Extract subdomain (e.g., "my-sso-demo" from "my-sso-demo.pratisha.cfd")
+            // Extract subdomain
             String subdomain = extractSubdomain(serverName);
 
             if (subdomain != null && !subdomain.isEmpty()) {
@@ -60,9 +60,11 @@ public class TenantFilter implements Filter {
                     // Check if tenant is active
                     if (!tenant.getActive()) {
                         logger.warn("⚠️ Tenant '{}' is INACTIVE", subdomain);
-                        httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN,
-                                "Tenant account is inactive");
-                        return; // Stop filter chain
+                        sendErrorPage(httpResponse,
+                                "Tenant Inactive",
+                                "This tenant account is currently inactive. Please contact support.",
+                                HttpServletResponse.SC_FORBIDDEN);
+                        return;
                     }
 
                     // Set tenant context
@@ -73,22 +75,14 @@ public class TenantFilter implements Filter {
                             subdomain, tenantIdString);
                 } else {
                     logger.error("❌ Unknown tenant subdomain: '{}' - Not found in database", subdomain);
-
-                    // Send friendly error response
-                    httpResponse.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                    httpResponse.setContentType("text/html");
-                    httpResponse.getWriter().write(
-                            "<html><body style='font-family: Arial, sans-serif; text-align: center; padding: 50px;'>" +
-                                    "<h1>Tenant Not Found</h1>" +
-                                    "<p>The subdomain '<strong>" + subdomain + "</strong>' does not exist.</p>" +
-                                    "<p>Please check the URL and try again.</p>" +
-                                    "<p><a href='https://" + baseDomain + "/login'>Go to main login</a></p>" +
-                                    "</body></html>"
-                    );
-                    return; // Stop filter chain
+                    sendErrorPage(httpResponse,
+                            "Tenant Not Found",
+                            "The subdomain '<strong>" + subdomain + "</strong>' does not exist.",
+                            HttpServletResponse.SC_NOT_FOUND);
+                    return;
                 }
             } else {
-                // ✅ No subdomain (e.g. pratisha.cfd) → SuperAdmin context
+                // ✅ No subdomain → SuperAdmin context
                 TenantContext.clear();
                 logger.debug("🧭 SuperAdmin context (no subdomain)");
             }
@@ -99,88 +93,112 @@ public class TenantFilter implements Filter {
         } catch (Exception e) {
             logger.error("💥 CRITICAL ERROR in TenantFilter for host '{}': {}",
                     serverName, e.getMessage(), e);
-
-            // Send error response
-            httpResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            httpResponse.setContentType("text/html");
-            httpResponse.getWriter().write(
-                    "<html><body style='font-family: Arial, sans-serif; text-align: center; padding: 50px;'>" +
-                            "<h1>Tenant Filter Error</h1>" +
-                            "<p>An error occurred while processing your request.</p>" +
-                            "<p>Error: " + e.getMessage() + "</p>" +
-                            "<p><a href='https://" + baseDomain + "/login'>Go to main login</a></p>" +
-                            "</body></html>"
-            );
+            sendErrorPage(httpResponse,
+                    "Server Error",
+                    "An error occurred while processing your request: " + e.getMessage(),
+                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
 
         } finally {
-            // ✅ Always clear TenantContext to prevent thread leakage
+            // ✅ Always clear TenantContext
             TenantContext.clear();
         }
     }
 
     /**
-     * Extract subdomain from hostname.
-     *
-     * Production Examples:
-     * - my-sso-demo.pratisha.cfd → "my-sso-demo"
-     * - pratisha.cfd → null (SuperAdmin)
-     * - www.pratisha.cfd → null (ignore www prefix)
-     *
-     * Development Examples:
-     * - pratik.localhost → "pratik"
-     * - localhost → null
+     * Extract subdomain from hostname with support for production domains
+     * Examples:
+     * - pratisha.cfd → null (base domain, SuperAdmin)
+     * - localhost → null (local dev, SuperAdmin)
+     * - tenant1.pratisha.cfd → "tenant1"
+     * - tenant1.localhost → "tenant1"
+     * - 192.168.1.1 → null (IP address, SuperAdmin)
      */
     private String extractSubdomain(String serverName) {
-        if (serverName == null) {
+        if (serverName == null || serverName.isEmpty()) {
             return null;
         }
 
-        // Remove port if present (e.g., "my-sso-demo.pratisha.cfd:8080" → "my-sso-demo.pratisha.cfd")
+        // Remove port if present
         if (serverName.contains(":")) {
             serverName = serverName.split(":")[0];
         }
 
-        // Handle localhost or IP addresses (development mode)
-        if (serverName.equalsIgnoreCase("localhost") ||
-                serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-            return null; // No subdomain
+        serverName = serverName.toLowerCase().trim();
+
+        // Handle IP addresses
+        if (serverName.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+            return null;
         }
 
-        // ✅ NEW: Check if this is the base domain (no subdomain)
-        if (serverName.equalsIgnoreCase(baseDomain)) {
-            return null; // This is the main domain - SuperAdmin access
+        // Check if this is the base domain (no subdomain)
+        if (serverName.equals(baseDomain)) {
+            return null; // SuperAdmin context
         }
 
-        // ✅ NEW: Check if this is www prefix - treat as base domain
-        if (serverName.equalsIgnoreCase("www." + baseDomain)) {
-            return null; // Redirect www to base domain
-        }
+        // Check if this matches base domain pattern (e.g., "pratisha.cfd")
+        if (baseDomain.contains(".")) {
+            String[] baseParts = baseDomain.split("\\.");
+            String[] serverParts = serverName.split("\\.");
 
-        // ✅ PRODUCTION: Extract subdomain from multi-level domain
-        // For "my-sso-demo.pratisha.cfd", extract "my-sso-demo"
-        if (serverName.endsWith("." + baseDomain)) {
-            String subdomain = serverName.substring(0, serverName.length() - baseDomain.length() - 1);
-
-            // Validate subdomain format (alphanumeric and hyphens only)
-            if (subdomain.matches("^[a-z0-9-]+$")) {
-                return subdomain.toLowerCase();
-            } else {
-                logger.warn("Invalid subdomain format: {}", subdomain);
+            // If same number of parts, it's the base domain
+            if (serverParts.length == baseParts.length) {
                 return null;
             }
-        }
 
-        // ✅ DEVELOPMENT: Handle simple localhost subdomains
-        // For "pratik.localhost", extract "pratik"
-        String[] parts = serverName.split("\\.");
-        if (parts.length >= 2) {
-            String potential = parts[0];
-            // Validate it's not "www" or other common prefixes
-            if (!potential.equalsIgnoreCase("www") && potential.matches("^[a-z0-9-]+$")) {
-                return potential.toLowerCase();
+            // Extract subdomain (everything before the base domain)
+            if (serverName.endsWith("." + baseDomain)) {
+                String subdomain = serverName.substring(0, serverName.length() - baseDomain.length() - 1);
+                // Validate subdomain format
+                if (subdomain.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")) {
+                    return subdomain;
+                }
+            }
+        } else {
+            // Simple domain like "localhost"
+            String[] parts = serverName.split("\\.");
+            if (parts.length >= 2 && !parts[0].equalsIgnoreCase("www")) {
+                return parts[0];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Send a styled error page to the user
+     */
+    private void sendErrorPage(HttpServletResponse response, String title, String message, int statusCode)
+            throws IOException {
+        response.setStatus(statusCode);
+        response.setContentType("text/html; charset=UTF-8");
+        response.getWriter().write(
+                "<!DOCTYPE html>" +
+                        "<html>" +
+                        "<head>" +
+                        "<title>" + title + "</title>" +
+                        "<style>" +
+                        "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; " +
+                        "       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                        "       display: flex; align-items: center; justify-content: center; " +
+                        "       min-height: 100vh; margin: 0; }" +
+                        ".container { background: white; padding: 40px; border-radius: 12px; " +
+                        "             box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 500px; text-align: center; }" +
+                        "h1 { color: #333; margin-bottom: 20px; }" +
+                        "p { color: #666; line-height: 1.6; margin-bottom: 30px; }" +
+                        "a { display: inline-block; background: #667eea; color: white; " +
+                        "    padding: 12px 30px; text-decoration: none; border-radius: 6px; " +
+                        "    transition: background 0.3s; }" +
+                        "a:hover { background: #5568d3; }" +
+                        "</style>" +
+                        "</head>" +
+                        "<body>" +
+                        "<div class='container'>" +
+                        "<h1>" + title + "</h1>" +
+                        "<p>" + message + "</p>" +
+                        "<a href='https://" + baseDomain + "/login'>Go to Main Login</a>" +
+                        "</div>" +
+                        "</body>" +
+                        "</html>"
+        );
     }
 }
