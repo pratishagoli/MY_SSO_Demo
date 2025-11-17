@@ -28,7 +28,6 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.saml2.provider.service.authentication.OpenSaml4AuthenticationProvider;
 import org.springframework.security.saml2.provider.service.registration.*;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -88,13 +87,13 @@ public class WebSecurityConfig {
                         .requestMatchers("/login/saml2/**").permitAll()
                         .requestMatchers("/saml2/**").permitAll()
 
-                        // SuperAdmin routes
+                        // SuperAdmin routes (Updated to match controller @RequestMapping)
                         .requestMatchers("/superadmin/**").hasAuthority("ROLE_SUPERADMIN")
 
                         // Admin routes
                         .requestMatchers(HttpMethod.PUT, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/users/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
-                        .requestMatchers("/superadmin-dashboard").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
+                        // ❌ Removed the old static path '/superadmin-dashboard' as it's now handled by '/superadmin/**'
                         .requestMatchers("/admin/sso/config").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
                         .requestMatchers("/admin/sso/config/**").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
                         .requestMatchers("/admin/sso/test/attributes").hasAnyAuthority("ROLE_TENANT_ADMIN", "ROLE_SUPERADMIN")
@@ -176,6 +175,7 @@ public class WebSecurityConfig {
                                 logger.error("Exception Cause: ", exception.getCause());
                                 logger.error("Full Exception: ", exception);
                                 logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                                super.onAuthenticationFailure(request, response, exception);
                             }
                         })
                         .defaultSuccessUrl("/dashboard", true)

@@ -44,10 +44,10 @@ public class SuperAdminController {
 
     @PersistenceContext
     private EntityManager entityManager;
-    public SuperAdminController(TenantService tenantService, UserRepository userRepository) {
-        this.tenantService = tenantService;
-        this.userRepository = userRepository;
-    }
+
+    // NOTE: Removed explicit constructor to rely on field injection for simplicity,
+    // as @Autowired and @PersistenceContext are already present.
+
     // ============================================================
     // ✅ 1. SUPERADMIN DASHBOARD
     // ============================================================
@@ -82,25 +82,33 @@ public class SuperAdminController {
     public String viewTenantUsers(@RequestParam("tenantId") Long tenantId, Model model) {
         logger.info("=== SuperAdmin viewing users for tenantId: {} ===", tenantId);
 
+        // NOTE ON TENANT FILTER MANIPULATION:
+        // This method manually enables the tenantFilter on the current Session
+        // to bypass the multitenancy logic and explicitly query users for a single tenant,
+        // which is a necessary SuperAdmin operation.
+
+        Session session = null;
         try {
-            // Verify tenant exists
+            // 1. Verify tenant exists
             Tenant tenant = tenantService.getTenantById(tenantId)
                     .orElseThrow(() -> new RuntimeException("Tenant not found with ID: " + tenantId));
 
             logger.info("Found tenant: {} (subdomain: {})", tenant.getName(), tenant.getSubdomain());
 
-            // Get Hibernate session and enable tenant filter
-            Session session = entityManager.unwrap(Session.class);
+            // 2. Get Hibernate session and enable tenant filter
+            session = entityManager.unwrap(Session.class);
             Filter filter = session.enableFilter("tenantFilter");
-            filter.setParameter("tenantId", tenantId);
+            // Need to set the tenantId as a String parameter as defined in the filter definition
+            filter.setParameter("tenantId", String.valueOf(tenantId));
 
-            logger.info("Hibernate tenant filter enabled for tenantId: {}", tenantId);
+            logger.info("Hibernate tenant filter temporarily enabled for tenantId: {}", tenantId);
 
-            // Fetch users for this tenant (filter is now active)
+            // 3. Fetch users for this tenant (filter is now active)
+            // userRepository.findAll() will now return only users matching the tenantId filter
             List<User> allUsers = userRepository.findAll();
             logger.info("Found {} users for tenant {}", allUsers.size(), tenantId);
 
-            // Separate users into native and SSO lists
+            // 4. Separate users into native and SSO lists
             List<User> nativeUsers = allUsers.stream()
                     .filter(u -> u.getProvider() == com.example.ssoapp.model.AuthProvider.LOCAL)
                     .collect(Collectors.toList());
@@ -111,21 +119,26 @@ public class SuperAdminController {
 
             logger.info("Native users: {}, SSO users: {}", nativeUsers.size(), ssoUsers.size());
 
-            // Add data to the model
+            // 5. Add data to the model
             model.addAttribute("nativeUsers", nativeUsers);
             model.addAttribute("ssoUsers", ssoUsers);
             model.addAttribute("tenantId", tenantId);
             model.addAttribute("tenantName", tenant.getName());
 
-            // Disable the filter after use
-            session.disableFilter("tenantFilter");
-
             return "admindashboard";
 
         } catch (Exception e) {
             logger.error("ERROR viewing tenant users for tenantId {}: {}", tenantId, e.getMessage(), e);
-            model.addAttribute("errorMessage", "Failed to load users: " + e.getMessage());
-            return "redirect:/superadmin/dashboard?error=load_users_failed";
+            // Add error to model for display
+            model.addAttribute("error", "Failed to load users: " + e.getMessage());
+            // Redirect back to dashboard with the error message
+            return "redirect:/superadmin/dashboard";
+        } finally {
+            // CRITICAL: Ensure the filter is disabled when done, even if an exception occurred.
+            if (session != null && session.getEnabledFilter("tenantFilter") != null) {
+                session.disableFilter("tenantFilter");
+                logger.info("Hibernate tenant filter disabled.");
+            }
         }
     }
 
@@ -146,11 +159,12 @@ public class SuperAdminController {
                     request.getSubdomain()
             );
             redirectAttributes.addFlashAttribute("successMessage",
-                    "Tenant created successfully! Subdomain: " + request.getSubdomain() + ".localhost");
+                    "Tenant created successfully! Subdomain: " + request.getSubdomain() + ".");
             return "redirect:/superadmin/dashboard";
         } catch (Exception e) {
             logger.error("Failed to create tenant: {}", e.getMessage(), e);
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            // Preserve the form data on redirect
             redirectAttributes.addFlashAttribute("createTenantRequest", request);
             return "redirect:/superadmin/dashboard";
         }
@@ -161,7 +175,9 @@ public class SuperAdminController {
     // ============================================================
     @PostMapping("/tenants/{id}/delete")
     public String deleteTenant(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        redirectAttributes.addFlashAttribute("successMessage", "Tenant deletion not yet implemented.");
+        // You would typically call a tenantService.deleteTenant(id) here
+        // For now, we'll just show the placeholder message
+        redirectAttributes.addFlashAttribute("successMessage", "Tenant deletion not yet implemented for ID: " + id);
         return "redirect:/superadmin/dashboard";
     }
 }
