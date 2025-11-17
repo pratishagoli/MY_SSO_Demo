@@ -11,8 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Admin-level user management operations.
@@ -181,5 +183,17 @@ public class AdminController {
                 "userId", savedUser.getId(),
                 "email", savedUser.getEmail()
         ));
+    }
+    @GetMapping
+    public ResponseEntity<List<User>> getAllNativeUsers() {
+        // 1. Fetch all users for the current tenant (restricted by Hibernate filter)
+        List<User> allUsers = userRepository.findAll();
+
+        // 2. Filter to only include native users
+        List<User> nativeUsers = allUsers.stream()
+                .filter(user -> user.getProvider() == AuthProvider.LOCAL)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(nativeUsers);
     }
 }

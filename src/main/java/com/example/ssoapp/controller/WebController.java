@@ -26,8 +26,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.hibernate.Session;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.EntityManager;
 
 /**
  * Main web controller handling login, signup, dashboard routing, and user registration.
@@ -46,6 +50,9 @@ public class WebController {
 
     @Autowired
     private SsoConfigService ssoConfigService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // ============================================================
     // ROOT ROUTE - Home Page
@@ -354,12 +361,29 @@ public class WebController {
         logger.info("Admin dashboard accessed by {} in tenant context: {}",
                 userDetails.getUsername(), tenantId);
 
-        // ✅ NEW LOGIC: Fetch all users for the current tenant
+        // ✅ CRITICAL FIX: Verify tenant context is set
+        if (tenantId == null || tenantId.isEmpty()) {
+            logger.error("No tenant context found for admin dashboard access");
+            model.addAttribute("error", "Tenant context not found. Please contact support.");
+            model.addAttribute("nativeUsers", new ArrayList<>());
+            model.addAttribute("ssoUsers", new ArrayList<>());
+            return "admindashboard";
+        }
+
         try {
-            // Since the request is handled within the tenant context,
-            // the Hibernate 'tenantFilter' automatically filters the results.
+            // ✅ Enable Hibernate filter explicitly
+            Session session = entityManager.unwrap(Session.class);
+            org.hibernate.Filter filter = session.enableFilter("tenantFilter");
+            filter.setParameter("tenantId", Long.valueOf(tenantId));
+
+            logger.info("Hibernate tenant filter enabled for tenantId: {}", tenantId);
+
+            // Fetch all users - filter will automatically apply tenant restriction
             List<User> allUsers = userRepository.findAll();
 
+            logger.info("Found {} total users for tenant {}", allUsers.size(), tenantId);
+
+            // Separate into native and SSO users
             List<User> nativeUsers = allUsers.stream()
                     .filter(u -> u.getProvider() == AuthProvider.LOCAL)
                     .collect(Collectors.toList());
@@ -368,15 +392,19 @@ public class WebController {
                     .filter(u -> u.getProvider() != AuthProvider.LOCAL)
                     .collect(Collectors.toList());
 
+            logger.info("Native users: {}, SSO users: {}", nativeUsers.size(), ssoUsers.size());
+
             model.addAttribute("nativeUsers", nativeUsers);
             model.addAttribute("ssoUsers", ssoUsers);
-            model.addAttribute("tenantId", tenantId); // Optional, but good practice
+            model.addAttribute("tenantId", tenantId);
 
         } catch (Exception e) {
-            logger.error("Error fetching users for admin dashboard: {}", e.getMessage());
+            logger.error("Error fetching users for admin dashboard: {}", e.getMessage(), e);
             model.addAttribute("error", "Failed to load user list.");
+            model.addAttribute("nativeUsers", new ArrayList<>());
+            model.addAttribute("ssoUsers", new ArrayList<>());
         }
 
-        return "admindashboard"; // Renders templates/admindashboard.html
+        return "admindashboard";
     }
 }
