@@ -2,7 +2,7 @@ package com.example.ssoapp.controller;
 
 import com.example.ssoapp.dto.CreateUserRequest;
 import com.example.ssoapp.model.AuthProvider;
-import com.example.ssoapp.model.Role; // NEW IMPORT
+import com.example.ssoapp.model.Role;
 import com.example.ssoapp.model.User;
 import com.example.ssoapp.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +33,7 @@ public class AdminController {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
+
     // Helper method to safely convert String role to Role Enum
     private Role getRoleFromString(String roleString) {
         if (roleString == null) {
@@ -46,10 +47,10 @@ public class AdminController {
         }
     }
 
-    // The PUT request to update a user
+    // The PUT request to update a user (No changes needed here)
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, String> updates) {
-        // ... (ID check logic remains the same)
+        // ... (existing logic for updateUser remains the same)
         String userIdFromBody = updates.get("id");
         if (userIdFromBody != null && !userIdFromBody.equals(id.toString())) {
             return new ResponseEntity<>("User ID mismatch in request.", HttpStatus.BAD_REQUEST);
@@ -65,7 +66,7 @@ public class AdminController {
         // Apply updates from the request body
         String newUsername = updates.get("username");
         String newEmail = updates.get("email");
-        String newRoleString = updates.get("role"); // Use 'newRoleString' to hold the string input
+        String newRoleString = updates.get("role");
         String userType = updates.get("userType");
 
         // 🚀 MULTITENANCY FIX: Use the Role Enum
@@ -78,7 +79,7 @@ public class AdminController {
             if (newRole != Role.USER && newRole != Role.TENANT_ADMIN && newRole != Role.SUPERADMIN) {
                 return new ResponseEntity<>("Invalid role value. Must be USER, TENANT_ADMIN, or SUPERADMIN.", HttpStatus.BAD_REQUEST);
             }
-            if (newRole != user.getRole()) { // Avoid unnecessary setter call
+            if (newRole != user.getRole()) {
                 user.setRole(newRole);
             }
         } else {
@@ -96,7 +97,7 @@ public class AdminController {
             if (newRole != Role.USER && newRole != Role.TENANT_ADMIN && newRole != Role.SUPERADMIN) {
                 return new ResponseEntity<>("Invalid role value. Must be USER, TENANT_ADMIN, or SUPERADMIN.", HttpStatus.BAD_REQUEST);
             }
-            if (newRole != user.getRole()) { // Avoid unnecessary setter call
+            if (newRole != user.getRole()) {
                 user.setRole(newRole);
             }
         }
@@ -107,15 +108,13 @@ public class AdminController {
         return new ResponseEntity<>("User updated successfully.", HttpStatus.OK);
     }
 
-    // The DELETE request to delete a user
+    // The DELETE request to delete a user (No changes needed here)
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         // Find the existing user
         if (!userRepository.existsById(id)) {
             return new ResponseEntity<>("User not found.", HttpStatus.NOT_FOUND);
         }
-
-        // Optional: Prevent deleting the currently logged-in admin user
 
         // Delete the user
         userRepository.deleteById(id);
@@ -125,6 +124,7 @@ public class AdminController {
 
     /**
      * POST request to create a native user by an Admin.
+     * 🚀 Updated to return a JSON response object.
      */
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody CreateUserRequest createUserRequest) {
@@ -162,7 +162,7 @@ public class AdminController {
 
         if (role == Role.SUPERADMIN) {
             // Admin cannot create a Superadmin, default to TENANT_ADMIN or USER
-            role = Role.TENANT_ADMIN;
+            role = Role.TENANT_ADMIN; // Assuming TENANT_ADMIN is the highest role an admin can assign
         }
 
         user.setRole(role);
@@ -171,13 +171,15 @@ public class AdminController {
         user.setProvider(AuthProvider.LOCAL);
         user.setProviderId(null);
 
-        // The TenantContext is set by the filter, but we need to ensure the user being created
-        // belongs to the current tenant if the Hibernate Interceptor isn't set for 'save'.
-        // However, since we set up the Hibernate Filter in Phase 5, all saves/updates are isolated.
-
         // 4. Save User (The Hibernate filter should automatically set the tenant_id on INSERT/UPDATE)
-        userRepository.save(user);
+        User savedUser = userRepository.save(user); // Capture the saved user
 
-        return new ResponseEntity<>("User created successfully.", HttpStatus.CREATED);
+        // 5. Return Success Response with the new user's ID
+        // This makes the frontend integration cleaner.
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "User created successfully.",
+                "userId", savedUser.getId(),
+                "email", savedUser.getEmail()
+        ));
     }
 }

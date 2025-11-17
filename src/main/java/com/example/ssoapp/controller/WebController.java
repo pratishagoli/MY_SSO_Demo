@@ -26,6 +26,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * Main web controller handling login, signup, dashboard routing, and user registration.
  * Supports multi-tenant architecture with role-based access control.
@@ -351,8 +354,29 @@ public class WebController {
         logger.info("Admin dashboard accessed by {} in tenant context: {}",
                 userDetails.getUsername(), tenantId);
 
-        // The actual admin dashboard page will use the tenant filter
-        // to show only users/data for the current tenant
+        // ✅ NEW LOGIC: Fetch all users for the current tenant
+        try {
+            // Since the request is handled within the tenant context,
+            // the Hibernate 'tenantFilter' automatically filters the results.
+            List<User> allUsers = userRepository.findAll();
+
+            List<User> nativeUsers = allUsers.stream()
+                    .filter(u -> u.getProvider() == AuthProvider.LOCAL)
+                    .collect(Collectors.toList());
+
+            List<User> ssoUsers = allUsers.stream()
+                    .filter(u -> u.getProvider() != AuthProvider.LOCAL)
+                    .collect(Collectors.toList());
+
+            model.addAttribute("nativeUsers", nativeUsers);
+            model.addAttribute("ssoUsers", ssoUsers);
+            model.addAttribute("tenantId", tenantId); // Optional, but good practice
+
+        } catch (Exception e) {
+            logger.error("Error fetching users for admin dashboard: {}", e.getMessage());
+            model.addAttribute("error", "Failed to load user list.");
+        }
+
         return "admindashboard"; // Renders templates/admindashboard.html
     }
 }
