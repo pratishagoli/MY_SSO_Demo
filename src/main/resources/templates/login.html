@@ -149,7 +149,11 @@
     </a>
 
 
-    <p class="signup-link">
+    <p class="signup-link" th:if="${!isTenantLogin}">
+        Don't have a tenant? <a href="/tenant-signup">Create Organization</a>
+    </p>
+
+    <p class="signup-link" th:if="${isTenantLogin}">
         Don't have an account? <a href="/signup">Sign Up</a>
     </p>
 </div>

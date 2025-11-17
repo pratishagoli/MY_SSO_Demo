@@ -80,6 +80,8 @@ public class WebSecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/login", "/signup", "/register-user", "/error").permitAll()
+                        // ✅ NEW: Allow public tenant signup
+                        .requestMatchers("/tenant-signup", "/api/tenant/signup").permitAll()
                         .requestMatchers("/api/auth/**", "/oauth2/**", "/api/secret/**").permitAll()
                         .requestMatchers("/static/**", "/css/**", "/js/**").permitAll()
                         .requestMatchers("/auth/jwt/callback", "/jwt/callback").permitAll()
