@@ -647,6 +647,8 @@ function closeCreateUserModal() {
     createUserModal.style.display = 'none';
 }
 
+// Alternative: Add user to table dynamically without page reload
+
 async function createUser() {
     const username = createUsername.value.trim();
     const email = createUserEmail.value.trim();
@@ -666,9 +668,8 @@ async function createUser() {
         return;
     }
 
-
     try {
-        const response = await fetch(`/api/admin/users`, { // New POST endpoint
+        const response = await fetch(`/api/admin/users`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -678,17 +679,18 @@ async function createUser() {
             body: JSON.stringify({
                 username: username,
                 email: email,
-                password: password, // Send password to the server
+                password: password,
                 role: role,
-                // provider and providerId will be null/defaulted on the backend for native users
             })
         });
 
         if (response.ok) {
+            const result = await response.json();
             alert('User created successfully!');
             closeCreateUserModal();
-            // Refresh the page to show the new user
-            window.location.reload();
+
+            // ✅ Add the new user to the Native Users table dynamically
+            addUserToTable(result.userId, username, email, role);
         } else {
             const errorText = await response.text();
             alert('Failed to create user: ' + errorText);
@@ -697,6 +699,50 @@ async function createUser() {
         console.error('Error creating user:', error);
         alert('An error occurred while creating user.');
     }
+}
+
+// Function to dynamically add user to the table
+function addUserToTable(userId, username, email, role) {
+    const tbody = document.querySelector('.user-table tbody');
+
+    // Remove "No native users found" message if it exists
+    const noUsersRow = tbody.querySelector('tr td[colspan="5"]');
+    if (noUsersRow && noUsersRow.textContent.includes('No native users found')) {
+        noUsersRow.parentElement.remove();
+    }
+
+    // Create new table row
+    const newRow = document.createElement('tr');
+    newRow.innerHTML = `
+        <td>${userId}</td>
+        <td id="username-${userId}">${username}</td>
+        <td id="email-${userId}">${email}</td>
+        <td id="role-${userId}">
+            <span>${role}</span>
+        </td>
+        <td>
+            <button class="action-btn edit-btn" data-userid="${userId}" data-usertype="native">Edit</button>
+            <button class="action-btn delete-btn" data-userid="${userId}">Delete</button>
+        </td>
+    `;
+
+    // Add event listeners to the new buttons
+    const editBtn = newRow.querySelector('.edit-btn');
+    const deleteBtn = newRow.querySelector('.delete-btn');
+
+    editBtn.addEventListener('click', function() {
+        const userId = this.getAttribute('data-userid');
+        const userType = this.getAttribute('data-usertype');
+        openEditModal(userId, userType);
+    });
+
+    deleteBtn.addEventListener('click', function() {
+        const userId = this.getAttribute('data-userid');
+        openDeleteModal(userId);
+    });
+
+    // Append to table
+    tbody.appendChild(newRow);
 }
 </script>
 
