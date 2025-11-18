@@ -338,7 +338,7 @@ public class WebController {
         } else {
             // Default route for standard users
             logger.info("Routing USER to standard dashboard: {}", username);
-            return "dashboard"; // Renders templates/dashboard.html
+            return "/dashboard.html"; // Renders templates/dashboard.html
         }
     }
 
