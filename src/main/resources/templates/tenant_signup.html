@@ -9,25 +9,27 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: grid;
             place-items: center;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 90vh; /* Adjusted for better alignment */
+            background-color: #f0f2f5; /* Changed to match Create Account background */
             margin: 0;
         }
 
         .signup-card {
+            /* Matches Create Account Card Look */
             background: #ffffff;
-            border: 1px solid #ddd;
+            border: 1px solid #ddd; /* Similar to Create Account border */
             padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-            width: 450px;
+            border-radius: 8px; /* Reduced border radius */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Reduced shadow */
+            width: 350px; /* Reduced width to match Create Account image */
             max-width: 90%;
+            text-align: center; /* Centered text content */
         }
 
         .signup-card h2 {
             margin-top: 0;
-            margin-bottom: 0.5rem;
-            font-size: 2rem;
+            margin-bottom: 1.5rem; /* Increased margin for spacing */
+            font-size: 1.8rem; /* Reduced font size */
             color: #333;
             text-align: center;
         }
@@ -36,34 +38,35 @@
             text-align: center;
             color: #666;
             font-size: 0.95rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem; /* Reduced margin */
         }
 
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem; /* Reduced margin */
+            text-align: left; /* Left align form labels/inputs */
         }
 
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
-            font-weight: 600;
+            font-weight: 500; /* Reduced font weight */
             color: #444;
         }
 
         .form-group input {
             width: 100%;
-            padding: 0.9rem;
+            padding: 0.8rem; /* Reduced padding */
             box-sizing: border-box;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 1px solid #ccc; /* Simplified border */
+            border-radius: 6px; /* Reduced border radius */
             font-size: 1rem;
             transition: border-color 0.3s ease;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #007bff; /* Use primary color */
+            box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.5); /* Simpler focus shadow */
         }
 
         .form-group input::placeholder {
@@ -78,32 +81,37 @@
 
         .btn {
             width: 100%;
-            padding: 1rem;
+            padding: 0.8rem; /* Reduced padding to match Sign Up button */
             cursor: pointer;
             border: none;
-            border-radius: 8px;
-            font-size: 1.05rem;
+            border-radius: 6px; /* Reduced border radius */
+            font-size: 1rem; /* Reduced font size */
             font-weight: 600;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            /* Matches Create Account Button Look */
+            background-color: #007bff; /* Solid bright blue color */
             color: white;
+            margin-top: 1rem; /* Added margin-top for spacing after last input */
             margin-bottom: 1rem;
+            width: 100%; /* Ensure full width */
+            background-image: none; /* Removed gradient */
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            background-color: #0056b3; /* Darker blue on hover */
+            transform: none; /* Removed lift effect */
+            box-shadow: none; /* Removed shadow on hover */
         }
 
         .btn-primary:disabled {
-            background: #ccc;
+            background-color: #ccc;
             cursor: not-allowed;
-            transform: none;
         }
 
+        /* Message/Link styles (keeping them close to the original but cleaned up) */
         .message {
             font-size: 0.9rem;
             text-align: center;
@@ -135,7 +143,7 @@
         }
 
         .login-link a {
-            color: #667eea;
+            color: #007bff; /* Use primary color */
             text-decoration: none;
             font-weight: 600;
         }
@@ -148,7 +156,7 @@
             display: none;
             text-align: center;
             margin-top: 1rem;
-            color: #667eea;
+            color: #007bff;
         }
 
         .subdomain-preview {
