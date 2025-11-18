@@ -117,7 +117,7 @@ public class JwtController {
             }
 
             // 4. Redirect to the protected resource
-            response.sendRedirect("/dashboard.html");
+            response.sendRedirect("/dashboard");
 
         } catch (Exception e) {
             // Log the error and redirect to an error page or login page

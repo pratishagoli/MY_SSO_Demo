@@ -152,7 +152,7 @@ public class WebSecurityConfig {
                                 restoreAdminSessionForTest(request, authentication);
                                 response.sendRedirect("/admin/sso/config?test=success");
                             } else {
-                                response.sendRedirect("/dashboard.html");
+                                response.sendRedirect("/dashboard");
                             }
                         })
                 )
@@ -180,7 +180,7 @@ public class WebSecurityConfig {
                                 super.onAuthenticationFailure(request, response, exception);
                             }
                         })
-                        .defaultSuccessUrl("/dashboard.html", true)
+                        .defaultSuccessUrl("/dashboard", true)
                 )
 
                 // Logout
