@@ -76,7 +76,7 @@ public class WebSecurityConfig {
         http.addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);
 
         http
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**", "/api/secret/**","/api/tenant/signup"))
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/login", "/signup", "/register-user", "/error").permitAll()
